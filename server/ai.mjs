@@ -2,10 +2,13 @@
    ACTIONFORGE AI ENGINE
    ========================================================= */
 
-const apiKey = process.env.AI_API_KEY;
+const apiKey =
+    process.env.AI_API_KEY;
 
 if (!apiKey) {
-    throw new Error("AI_API_KEY is missing.");
+    throw new Error(
+        "AI_API_KEY is missing."
+    );
 }
 
 const API_URL =
@@ -17,15 +20,21 @@ const MODEL =
 
 /* =========================================================
    TIMEOUT
-   =========================================================
+   ========================================================= */
 
-   Netlify currently allows synchronous functions up to
-   60 seconds.
+const AI_TIMEOUT_MS =
+    50000;
 
-   We leave a small safety margin.
-*/
 
-const AI_TIMEOUT_MS = 50000;
+/* =========================================================
+   RETRY SETTINGS
+   ========================================================= */
+
+const MAX_RETRIES =
+    2;
+
+const RETRY_DELAY_MS =
+    1200;
 
 
 /* =========================================================
@@ -35,7 +44,7 @@ const AI_TIMEOUT_MS = 50000;
 const SYSTEM_PROMPT = `
 You are ActionForge, an AI execution-planning assistant.
 
-Turn the user's goal into a practical execution plan.
+Turn a user's goal into a practical execution plan.
 
 IMPORTANT:
 - Do NOT browse the web.
@@ -46,8 +55,11 @@ IMPORTANT:
 - Make reasonable assumptions when information is missing.
 
 Return ONLY a JSON object.
+Do not use Markdown.
+Do not use code fences.
+Do not add text before or after the JSON.
 
-Required structure:
+Use this exact structure:
 
 {
   "goal": "string",
@@ -76,18 +88,17 @@ Rules:
 - critical_path references existing task IDs.
 - estimated_minutes must be an integer.
 - Keep the number of tasks reasonable.
-- Do not create unnecessary tasks.
 `;
 
 
 /* =========================================================
-   REPLAN PROMPT
+   REPLAN SYSTEM PROMPT
    ========================================================= */
 
 const REPLAN_SYSTEM_PROMPT = `
 You are ActionForge, an AI execution-planning assistant.
 
-Your job is to adapt an existing execution plan when reality changes.
+Adapt an existing execution plan when reality changes.
 
 IMPORTANT:
 - Do NOT browse the web.
@@ -98,11 +109,11 @@ IMPORTANT:
 - Preserve the original goal.
 - Keep the plan practical.
 - Keep the number of tasks reasonable.
-- Modify only what actually needs to change.
+- Modify only what needs to change.
 
 Return ONLY a JSON object.
 
-Required structure:
+Use exactly this structure:
 
 {
   "updated_plan": {
@@ -133,8 +144,23 @@ Rules:
 - critical_path must reference existing task IDs.
 - estimated_minutes must be an integer.
 - Keep changes concise.
-- Do not rewrite the entire plan unnecessarily.
 `;
+
+
+/* =========================================================
+   WAIT HELPER
+   ========================================================= */
+
+function sleep(ms) {
+
+    return new Promise(
+        resolve => setTimeout(
+            resolve,
+            ms
+        )
+    );
+
+}
 
 
 /* =========================================================
@@ -146,170 +172,299 @@ async function callAI(
     maxTokens = 2500
 ) {
 
-    const controller =
-        new AbortController();
+    let lastError = null;
 
 
-    const timeout =
-        setTimeout(
-            () => controller.abort(),
-            AI_TIMEOUT_MS
-        );
-
-
-    try {
-
-        const response =
-            await fetch(
-                API_URL,
-                {
-                    method: "POST",
-
-                    signal:
-                        controller.signal,
-
-                    headers: {
-                        "Authorization":
-                            `Bearer ${apiKey.trim()}`,
-
-                        "Content-Type":
-                            "application/json"
-                    },
-
-                    body:
-                        JSON.stringify({
-
-                            model:
-                                MODEL,
-
-                            messages,
-
-                            temperature:
-                                0.1,
-
-                            max_tokens:
-                                maxTokens,
-
-                            /*
-                             * IMPORTANT:
-                             *
-                             * Ask the API itself to produce
-                             * JSON instead of relying only
-                             * on prompt instructions.
-                             */
-
-                            response_format: {
-                                type: "json_object"
-                            }
-
-                        })
-                }
-            );
-
-
-        const raw =
-            await response.text();
-
-
-        console.log(
-            "B.AI status:",
-            response.status
-        );
-
-
-        /* =================================================
-           API ERROR
-           ================================================= */
-
-        if (!response.ok) {
-
-            console.error(
-                "B.AI ERROR:",
-                raw
-            );
-
-
-            if (
-                raw.includes(
-                    "Inactivity Timeout"
-                )
-            ) {
-
-                throw new Error(
-                    "AI service timed out. Please try again."
-                );
-
-            }
-
-
-            if (
-                response.status === 429
-            ) {
-
-                throw new Error(
-                    "AI service rate limit reached. Please try again shortly."
-                );
-
-            }
-
-
-            throw new Error(
-                `AI service returned ${response.status}.`
-            );
-
-        }
-
-
-        /* =================================================
-           PARSE API RESPONSE
-           ================================================= */
-
-        let data;
+    for (
+        let attempt = 1;
+        attempt <= MAX_RETRIES;
+        attempt++
+    ) {
 
         try {
 
-            data =
-                JSON.parse(raw);
+            console.log(
+                `B.AI request attempt ${attempt}/${MAX_RETRIES}`
+            );
+
+
+            const controller =
+                new AbortController();
+
+
+            const timeout =
+                setTimeout(
+                    () => controller.abort(),
+                    AI_TIMEOUT_MS
+                );
+
+
+            try {
+
+                const response =
+                    await fetch(
+                        API_URL,
+                        {
+
+                            method: "POST",
+
+                            signal:
+                                controller.signal,
+
+                            headers: {
+
+                                "Authorization":
+                                    `Bearer ${apiKey.trim()}`,
+
+                                "Content-Type":
+                                    "application/json"
+
+                            },
+
+                            body:
+                                JSON.stringify({
+
+                                    model:
+                                        MODEL,
+
+                                    messages,
+
+                                    temperature:
+                                        0.1,
+
+                                    max_tokens:
+                                        maxTokens,
+
+                                    response_format:
+                                        {
+                                            type:
+                                                "json_object"
+                                        }
+
+                                })
+
+                        }
+                    );
+
+
+                const raw =
+                    await response.text();
+
+
+                console.log(
+                    "B.AI status:",
+                    response.status
+                );
+
+
+                /* =========================================
+                   HTTP ERROR
+                   ========================================= */
+
+                if (!response.ok) {
+
+                    console.error(
+                        "B.AI ERROR:",
+                        raw
+                    );
+
+
+                    if (
+                        raw.includes(
+                            "Inactivity Timeout"
+                        )
+                    ) {
+
+                        throw new Error(
+                            "AI service timed out."
+                        );
+
+                    }
+
+
+                    if (
+                        response.status === 429
+                    ) {
+
+                        throw new Error(
+                            "AI service rate limit reached."
+                        );
+
+                    }
+
+
+                    throw new Error(
+                        `AI service returned ${response.status}.`
+                    );
+
+                }
+
+
+                /* =========================================
+                   PARSE API RESPONSE
+                   ========================================= */
+
+                let data;
+
+                try {
+
+                    data =
+                        JSON.parse(raw);
+
+                }
+                catch {
+
+                    console.error(
+                        "NON-JSON B.AI RESPONSE:",
+                        raw
+                    );
+
+                    throw new Error(
+                        "AI service returned an invalid response."
+                    );
+
+                }
+
+
+                /* =========================================
+                   CHECK FOR USABLE MODEL TEXT
+                   ========================================= */
+
+                const text =
+                    extractText(
+                        data
+                    );
+
+
+                /*
+                 * IMPORTANT:
+                 *
+                 * If the API technically succeeded but
+                 * returned no content, treat that as a
+                 * retryable failure.
+                 */
+
+                if (
+                    !text ||
+                    !text.trim()
+                ) {
+
+                    throw new Error(
+                        "AI returned no usable text."
+                    );
+
+                }
+
+
+                /*
+                 * Validate JSON before returning.
+                 *
+                 * This prevents malformed responses from
+                 * reaching the frontend.
+                 */
+
+                parseJSON(
+                    text
+                );
+
+
+                return data;
+
+            }
+            finally {
+
+                clearTimeout(
+                    timeout
+                );
+
+            }
 
         }
-        catch {
+        catch (error) {
+
+            lastError =
+                error;
+
 
             console.error(
-                "NON-JSON B.AI RESPONSE:",
-                raw
+                `B.AI attempt ${attempt} failed:`,
+                error?.message
             );
 
-            throw new Error(
-                "AI service returned an invalid response."
-            );
+
+            /*
+             * Do not retry authentication or configuration
+             * errors. Those will not magically fix themselves.
+             */
+
+            const message =
+                String(
+                    error?.message || ""
+                ).toLowerCase();
+
+
+            const permanentError =
+                message.includes(
+                    "401"
+                ) ||
+                message.includes(
+                    "403"
+                ) ||
+                message.includes(
+                    "api key"
+                ) ||
+                message.includes(
+                    "authentication"
+                ) ||
+                message.includes(
+                    "rate limit"
+                );
+
+
+            if (
+                permanentError
+            ) {
+
+                throw error;
+
+            }
+
+
+            /*
+             * Retry if another attempt remains.
+             */
+
+            if (
+                attempt < MAX_RETRIES
+            ) {
+
+                await sleep(
+                    RETRY_DELAY_MS
+                );
+
+            }
 
         }
 
+    }
 
-        return data;
+
+    /*
+     * All attempts failed.
+     */
+
+    if (
+        lastError?.message
+    ) {
+
+        throw lastError;
 
     }
-    catch (error) {
-
-        if (
-            error?.name === "AbortError"
-        ) {
-
-            throw new Error(
-                "AI request timed out. Please try again."
-            );
-
-        }
 
 
-        throw error;
-
-    }
-    finally {
-
-        clearTimeout(timeout);
-
-    }
+    throw new Error(
+        "AI request failed after multiple attempts."
+    );
 
 }
 
@@ -318,26 +473,126 @@ async function callAI(
    EXTRACT TEXT
    ========================================================= */
 
-function extractText(data) {
+function extractText(
+    data
+) {
 
     /*
-     * Standard B.AI / OpenAI-compatible response.
+     * Standard OpenAI-compatible response.
      */
 
+    const message =
+        data?.choices?.[0]?.message;
+
+
     if (
-        data?.choices?.[0]?.message
+        message
     ) {
 
-        const content =
-            data.choices[0].message.content;
-
+        /*
+         * Normal string response.
+         */
 
         if (
-            typeof content === "string" &&
-            content.trim()
+            typeof message.content ===
+                "string" &&
+            message.content.trim()
         ) {
 
-            return content.trim();
+            return message.content.trim();
+
+        }
+
+
+        /*
+         * Some providers may return content
+         * as an array of content blocks.
+         */
+
+        if (
+            Array.isArray(
+                message.content
+            )
+        ) {
+
+            const parts = [];
+
+
+            for (
+                const part
+                of message.content
+            ) {
+
+                if (
+                    typeof part ===
+                        "string"
+                ) {
+
+                    parts.push(
+                        part
+                    );
+
+                }
+                else if (
+                    typeof part?.text ===
+                        "string"
+                ) {
+
+                    parts.push(
+                        part.text
+                    );
+
+                }
+
+            }
+
+
+            const combined =
+                parts
+                    .join("")
+                    .trim();
+
+
+            if (
+                combined
+            ) {
+
+                return combined;
+
+            }
+
+        }
+
+
+        /*
+         * Some APIs may expose reasoning/content
+         * separately.
+         */
+
+        if (
+            typeof message.reasoning_content ===
+                "string" &&
+            message.reasoning_content.trim()
+        ) {
+
+            /*
+             * Do NOT normally use reasoning as the final
+             * answer, but keep this available as a fallback
+             * if it itself contains JSON.
+             */
+
+            const reasoning =
+                message.reasoning_content.trim();
+
+
+            if (
+                reasoning.startsWith("{") &&
+                reasoning.endsWith("}")
+            ) {
+
+                return reasoning;
+
+            }
 
         }
 
@@ -345,11 +600,12 @@ function extractText(data) {
 
 
     /*
-     * Compatibility with other response formats.
+     * Responses API compatibility.
      */
 
     if (
-        typeof data?.output_text === "string" &&
+        typeof data?.output_text ===
+            "string" &&
         data.output_text.trim()
     ) {
 
@@ -358,12 +614,19 @@ function extractText(data) {
     }
 
 
+    /*
+     * Generic output compatibility.
+     */
+
     if (
-        Array.isArray(data?.output)
+        Array.isArray(
+            data?.output
+        )
     ) {
 
         for (
-            const item of data.output
+            const item
+            of data.output
         ) {
 
             if (
@@ -409,9 +672,7 @@ function extractText(data) {
     );
 
 
-    throw new Error(
-        "AI returned no usable text."
-    );
+    return null;
 
 }
 
@@ -420,7 +681,9 @@ function extractText(data) {
    PARSE JSON
    ========================================================= */
 
-function parseJSON(text) {
+function parseJSON(
+    text
+) {
 
     if (
         !text ||
@@ -428,7 +691,7 @@ function parseJSON(text) {
     ) {
 
         throw new Error(
-            "AI returned an empty response."
+            "AI returned invalid JSON."
         );
 
     }
@@ -439,7 +702,8 @@ function parseJSON(text) {
 
 
     /*
-     * Remove accidental Markdown fences.
+     * Remove Markdown fences if the model
+     * accidentally adds them.
      */
 
     cleaned =
@@ -460,7 +724,7 @@ function parseJSON(text) {
 
 
     /*
-     * Direct parse.
+     * Direct JSON parse.
      */
 
     try {
@@ -476,15 +740,19 @@ function parseJSON(text) {
 
 
     /*
-     * Attempt to locate an object.
+     * Find JSON object inside surrounding text.
      */
 
     const start =
-        cleaned.indexOf("{");
+        cleaned.indexOf(
+            "{"
+        );
 
 
     const end =
-        cleaned.lastIndexOf("}");
+        cleaned.lastIndexOf(
+            "}"
+        );
 
 
     if (
@@ -571,6 +839,7 @@ Return only the required JSON object.
     const data =
         await callAI(
             [
+
                 {
                     role: "system",
                     content:
@@ -582,14 +851,16 @@ Return only the required JSON object.
                     content:
                         userPrompt
                 }
-            ],
 
+            ],
             2500
         );
 
 
     const text =
-        extractText(data);
+        extractText(
+            data
+        );
 
 
     return parseJSON(
@@ -608,7 +879,9 @@ export async function replan(
     problem
 ) {
 
-    if (!originalPlan) {
+    if (
+        !originalPlan
+    ) {
 
         throw new Error(
             "Original plan is required."
@@ -631,10 +904,7 @@ export async function replan(
 
 
     /*
-     * Only send the information the AI actually needs.
-     *
-     * This reduces the input size and therefore makes
-     * adaptation faster.
+     * Only send information needed for adaptation.
      */
 
     const compactPlan = {
@@ -675,7 +945,7 @@ export async function replan(
 
 
     const userPrompt = `
-EXISTING PLAN:
+EXISTING ACTIONFORGE PLAN:
 
 ${JSON.stringify(
     compactPlan
@@ -685,32 +955,27 @@ NEW PROBLEM:
 
 ${problem.trim()}
 
-Adapt the existing plan.
+Adapt this plan.
 
-Do the following:
+Requirements:
 
-1. Preserve the original goal.
-2. Identify what changed.
-3. Modify affected tasks.
-4. Reorder tasks if necessary.
-5. Fix dependencies if necessary.
-6. Recalculate the critical path.
-7. Decide whether the deadline is still realistic.
-8. Keep unaffected tasks where possible.
-9. Return concise changes.
-10. Return only JSON.
+- Preserve the original goal.
+- Identify what changed.
+- Modify affected tasks.
+- Reorder tasks if necessary.
+- Fix dependencies if necessary.
+- Recalculate the critical path.
+- Decide whether the deadline remains realistic.
+- Keep unaffected tasks where possible.
+- Keep changes concise.
+- Return ONLY JSON.
 `;
 
-
-    /*
-     * Replanning gets a smaller output budget than
-     * initial generation because it should modify,
-     * not endlessly regenerate.
-     */
 
     const data =
         await callAI(
             [
+
                 {
                     role: "system",
                     content:
@@ -722,14 +987,16 @@ Do the following:
                     content:
                         userPrompt
                 }
-            ],
 
+            ],
             2200
         );
 
 
     const text =
-        extractText(data);
+        extractText(
+            data
+        );
 
 
     return parseJSON(
