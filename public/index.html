@@ -15,12 +15,30 @@
         content="ActionForge turns vague goals into executable plans and adapts them when reality changes."
     >
 
-    <title>ActionForge — Turn intentions into execution</title>
+    <meta
+        name="theme-color"
+        content="#08090d"
+    >
+
+    <title>
+        ActionForge — Turn intentions into execution
+    </title>
+
+
+    <!-- FAVICON -->
 
     <link
         rel="icon"
         type="image/png"
         href="/actionforge-logo.png"
+    >
+
+
+    <!-- STYLESHEET -->
+
+    <link
+        rel="stylesheet"
+        href="/style.css"
     >
 
 </head>
@@ -39,12 +57,20 @@
 
         <div class="brand">
 
-<div class="brand-mark">
-    <img
-        src="/actionforge-logo.png"
-        alt="ActionForge logo"
-    >
-</div>
+
+            <!-- LOGO -->
+
+            <div class="brand-mark">
+
+                <img
+                    src="/actionforge-logo.png"
+                    alt="ActionForge logo"
+                >
+
+            </div>
+
+
+            <!-- BRAND TEXT -->
 
             <div>
 
@@ -60,6 +86,8 @@
 
         </div>
 
+
+        <!-- STATUS -->
 
         <div class="status">
 
@@ -137,7 +165,6 @@
                     <button
                         id="generateBtn"
                         class="primary-button"
-                        type="button"
                     >
 
                         <span>
@@ -166,7 +193,6 @@
 
                 <button
                     class="example"
-                    type="button"
                     data-goal="I need to prepare for a difficult exam in 10 days while still attending my normal classes."
                 >
                     Exam preparation
@@ -175,7 +201,6 @@
 
                 <button
                     class="example"
-                    type="button"
                     data-goal="I want to launch a portfolio website this weekend, but I have no existing website."
                 >
                     Launch a website
@@ -184,7 +209,6 @@
 
                 <button
                     class="example"
-                    type="button"
                     data-goal="I need to organize a small university event in two weeks with a limited budget."
                 >
                     Organize an event
@@ -207,9 +231,11 @@
 
             <div class="loader-ring"></div>
 
+
             <h2>
                 Forging your execution plan...
             </h2>
+
 
             <p>
                 Breaking the goal into actionable steps.
@@ -264,9 +290,7 @@
 
 
 
-            <!-- =================================================
-                 STATS
-                 ================================================= -->
+            <!-- STATS -->
 
             <div class="stats-grid">
 
@@ -276,6 +300,7 @@
                     <span class="stat-label">
                         DEADLINE
                     </span>
+
 
                     <strong id="deadline">
                         —
@@ -290,6 +315,7 @@
                         TASKS
                     </span>
 
+
                     <strong id="taskCount">
                         —
                     </strong>
@@ -303,6 +329,7 @@
                         CRITICAL PATH
                     </span>
 
+
                     <strong id="criticalCount">
                         —
                     </strong>
@@ -313,9 +340,7 @@
 
 
 
-            <!-- =================================================
-                 TASKS
-                 ================================================= -->
+            <!-- TASKS -->
 
             <div class="section-heading">
 
@@ -324,6 +349,7 @@
                     <span class="eyebrow">
                         STEP-BY-STEP
                     </span>
+
 
                     <h3>
                         Execution Path
@@ -341,9 +367,7 @@
 
 
 
-            <!-- =================================================
-                 AI INSIGHT
-                 ================================================= -->
+            <!-- AI INSIGHT -->
 
             <div class="insight-card">
 
@@ -351,11 +375,13 @@
                     ✦
                 </div>
 
+
                 <div>
 
                     <span class="insight-label">
                         AI STRATEGIC INSIGHT
                     </span>
+
 
                     <p id="insight"></p>
 
@@ -366,10 +392,65 @@
 
 
             <!-- =================================================
-                 REALITY CHECK / REPLAN
+                 PDF DOWNLOAD
+                 ================================================= -->
+
+            <div class="pdf-card">
+
+                <div class="pdf-content">
+
+                    <div class="pdf-icon">
+                        ↓
+                    </div>
+
+
+                    <div>
+
+                        <span class="pdf-label">
+                            WANT TO TAKE IT WITH YOU?
+                        </span>
+
+
+                        <h3>
+                            Save your execution plan
+                        </h3>
+
+
+                        <p>
+                            Download a clean PDF version of
+                            this plan for offline use.
+                        </p>
+
+                    </div>
+
+                </div>
+
+
+                <button
+                    id="downloadPdfBtn"
+                    class="pdf-button"
+                >
+
+                    <span>
+                        Download PDF
+                    </span>
+
+                    <span>
+                        ↓
+                    </span>
+
+                </button>
+
+            </div>
+
+
+
+            <!-- =================================================
+                 REPLAN
                  ================================================= -->
 
             <section class="replan-card">
+
 
                 <div class="replan-header">
 
@@ -379,9 +460,11 @@
                             REALITY CHECK
                         </span>
 
+
                         <h3>
                             Something changed?
                         </h3>
+
 
                         <p>
                             Plans are useful.
@@ -408,7 +491,6 @@
                 <button
                     id="replanBtn"
                     class="secondary-button"
-                    type="button"
                 >
 
                     Adapt My Plan
@@ -423,9 +505,7 @@
 
 
 
-            <!-- =================================================
-                 CHANGES
-                 ================================================= -->
+            <!-- CHANGES -->
 
             <section
                 id="changesSection"
@@ -443,38 +523,11 @@
 
 
 
-            <!-- =================================================
-                 PDF EXPORT
-                 ================================================= -->
-
-            <div class="pdf-actions">
-
-                <button
-                    id="downloadPdfBtn"
-                    class="pdf-button"
-                    type="button"
-                >
-
-                    <span>
-                        ↓
-                    </span>
-
-                    Download Plan as PDF
-
-                </button>
-
-            </div>
-
-
-
-            <!-- =================================================
-                 NEW PLAN
-                 ================================================= -->
+            <!-- NEW PLAN -->
 
             <button
                 id="newPlanBtn"
                 class="new-plan-button"
-                type="button"
             >
 
                 ← Start a New Goal
@@ -498,6 +551,7 @@
                 Something went wrong.
             </strong>
 
+
             <span id="errorMessage"></span>
 
         </div>
@@ -516,17 +570,30 @@
             ActionForge
         </span>
 
+
         <span>
             AI-powered execution planning
         </span>
 
     </footer>
 
-
 </div>
 
 
+
+<!-- =========================================================
+     PDF LIBRARY
+     ========================================================= -->
+
+<script
+    src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"
+></script>
+
+
+<!-- APP -->
+
 <script src="/app.js"></script>
+
 
 </body>
 
