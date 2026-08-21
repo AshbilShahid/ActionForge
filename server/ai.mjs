@@ -2,10 +2,8 @@ import { GoogleGenAI } from "@google/genai";
 
 
 /* =========================================================
-   ACTIONFORGE — AI ENGINE
-   AIHubMix Gemini Native API
+   ACTIONFORGE AI ENGINE
    ========================================================= */
-
 
 const apiKey = process.env.AIHUBMIX_API_KEY;
 
@@ -15,10 +13,6 @@ if (!apiKey) {
     );
 }
 
-
-/* =========================================================
-   AIHUBMIX GEMINI CONFIGURATION
-   ========================================================= */
 
 const MODEL = "gemini-3.7-flash-free";
 
@@ -33,13 +27,10 @@ const ai = new GoogleGenAI({
 
 
 console.log(
-    "ActionForge Gemini configuration loaded:",
+    "ActionForge AI initialized:",
     {
         model: MODEL,
-        apiKeyDetected:
-            apiKey.slice(0, 3) +
-            "..." +
-            apiKey.slice(-4)
+        provider: "AIHubMix"
     }
 );
 
@@ -49,49 +40,41 @@ console.log(
    ========================================================= */
 
 const SYSTEM_PROMPT = `
+You are ActionForge.
 
-You are ActionForge, an intelligent execution-planning agent.
-
-Your purpose is to transform vague human goals into practical,
-realistic, executable action plans.
-
-You help users turn ideas and objectives into concrete steps.
+You transform a user's goal into a practical execution plan.
 
 IMPORTANT:
 
-You are NOT a web research assistant.
+DO NOT browse the web.
 
-DO NOT:
+DO NOT perform web searches.
 
-- Browse the web.
-- Perform web searches.
-- Use Google Search.
-- Use external search tools.
-- Request external information.
-- Search for facts outside the information supplied by the user.
+DO NOT use Google Search.
 
-Work only with the information provided by the user.
+DO NOT use external search tools.
 
-If information is missing:
+Use ONLY the information provided by the user.
 
-1. Make reasonable assumptions.
-2. Put those assumptions into the assumptions field.
+If information is missing, make reasonable assumptions.
 
-Your planning process:
 
-1. Understand the user's objective.
+Your plans should:
+
+1. Understand the user's goal.
 2. Identify the desired outcome.
 3. Identify deadlines.
 4. Identify constraints.
-5. Break the objective into executable tasks.
+5. Break the goal into concrete tasks.
 6. Remove unnecessary work.
 7. Identify dependencies.
 8. Estimate realistic time requirements.
 9. Prioritize tasks.
 10. Identify the critical path.
-11. Provide one useful strategic insight.
+11. Give one useful strategic insight.
 
-Prefer concrete actions over vague advice.
+
+Avoid vague tasks.
 
 Bad:
 
@@ -101,32 +84,27 @@ Good:
 
 "Create the homepage structure and write the hero section."
 
-Every task must directly contribute toward the user's goal.
-
-Keep the number of tasks reasonable.
-
 
 =========================================================
-OUTPUT FORMAT
+OUTPUT
 =========================================================
 
-RETURN ONLY VALID JSON.
+Return ONLY a JSON object.
 
-Do NOT use markdown.
+Do not write an introduction.
 
-Do NOT wrap JSON in code fences.
+Do not write an explanation.
 
-Do NOT write explanations outside the JSON.
+Do not use Markdown.
 
-Use this structure:
+Do not use code fences.
+
+Use exactly this structure:
 
 {
   "goal": "string",
-
   "summary": "string",
-
   "deadline": "string",
-
   "priority": "low | medium | high | critical",
 
   "assumptions": [
@@ -145,41 +123,162 @@ Use this structure:
   ],
 
   "critical_path": [
-    "T1",
-    "T2"
+    "T1"
   ],
 
   "insight": "string"
 }
 
 
-=========================================================
-RULES
-=========================================================
+Rules:
 
 - Every task must have a unique ID.
-- Use T1, T2, T3, etc.
-- Dependencies must reference existing task IDs.
-- critical_path must reference existing task IDs.
+- IDs must be T1, T2, T3, etc.
+- Dependencies must reference existing IDs.
+- critical_path must reference existing IDs.
 - estimated_minutes must be an integer.
-- Keep the task count reasonable.
+- Keep the number of tasks reasonable.
 - Do not invent unnecessary requirements.
-- Prioritize actions that directly move the user toward the goal.
-- Make the plan practical.
-- Respect user-provided deadlines.
 - Return JSON only.
-
 `;
 
 
 /* =========================================================
-   GENERATE CONTENT
+   EXTRACT JSON SAFELY
    ========================================================= */
 
-async function generateContent(prompt) {
+function extractJSON(text) {
+
+    if (!text) {
+        throw new Error(
+            "AI returned an empty response."
+        );
+    }
+
+
+    let cleaned = text.trim();
+
+
+    /*
+     * Remove Markdown code fences.
+     */
+
+    cleaned = cleaned
+        .replace(/^```json\s*/i, "")
+        .replace(/^```javascript\s*/i, "")
+        .replace(/^```\s*/i, "")
+        .replace(/\s*```$/i, "")
+        .trim();
+
+
+    /*
+     * First attempt:
+     * parse the entire response.
+     */
+
+    try {
+
+        return JSON.parse(cleaned);
+
+    } catch {
+        // Continue to recovery.
+    }
+
+
+    /*
+     * Second attempt:
+     * Find the first JSON object.
+     */
+
+    const firstBrace =
+        cleaned.indexOf("{");
+
+    const lastBrace =
+        cleaned.lastIndexOf("}");
+
+
+    if (
+        firstBrace !== -1 &&
+        lastBrace !== -1 &&
+        lastBrace > firstBrace
+    ) {
+
+        const possibleJSON =
+            cleaned.slice(
+                firstBrace,
+                lastBrace + 1
+            );
+
+
+        try {
+
+            return JSON.parse(
+                possibleJSON
+            );
+
+        } catch {
+            // Continue.
+        }
+
+    }
+
+
+    /*
+     * Third attempt:
+     * Sometimes Gemini returns a JSON object
+     * inside a quoted string.
+     */
+
+    try {
+
+        const parsed =
+            JSON.parse(cleaned);
+
+        if (typeof parsed === "string") {
+
+            return JSON.parse(parsed);
+
+        }
+
+    } catch {
+        // Continue.
+    }
+
+
+    /*
+     * Nothing worked.
+     *
+     * Log the actual AI response so we can
+     * diagnose it from Netlify logs.
+     */
+
+    console.error(
+        "========== INVALID AI RESPONSE =========="
+    );
+
+    console.error(
+        cleaned
+    );
+
+    console.error(
+        "=========================================="
+    );
+
+
+    throw new Error(
+        "AI returned invalid JSON."
+    );
+}
+
+
+/* =========================================================
+   CALL GEMINI
+   ========================================================= */
+
+async function callAI(prompt) {
 
     console.log(
-        `ActionForge calling ${MODEL}`
+        `Calling ${MODEL} through AIHubMix...`
     );
 
 
@@ -197,7 +296,7 @@ async function generateContent(prompt) {
                     systemInstruction:
                         SYSTEM_PROMPT,
 
-                    temperature: 0.3,
+                    temperature: 0.2,
 
                     responseMimeType:
                         "application/json"
@@ -207,21 +306,31 @@ async function generateContent(prompt) {
             });
 
 
+        /*
+         * Gemini SDK normally exposes
+         * the generated text through .text
+         */
+
         const text =
             response?.text;
 
 
         if (!text) {
 
+            console.error(
+                "Complete Gemini response:",
+                response
+            );
+
             throw new Error(
-                "Gemini returned an empty response."
+                "AI returned an empty response."
             );
 
         }
 
 
         console.log(
-            "ActionForge received AI response successfully."
+            "AI response received successfully."
         );
 
 
@@ -231,7 +340,7 @@ async function generateContent(prompt) {
     } catch (error) {
 
         console.error(
-            "Gemini / AIHubMix error:",
+            "AIHubMix/Gemini error:",
             error
         );
 
@@ -247,63 +356,7 @@ async function generateContent(prompt) {
 
 
 /* =========================================================
-   PARSE JSON
-   ========================================================= */
-
-function parseJSON(text) {
-
-    if (!text) {
-
-        throw new Error(
-            "AI returned an empty response."
-        );
-
-    }
-
-
-    try {
-
-        return JSON.parse(text);
-
-    } catch (error) {
-
-        console.error(
-            "Invalid JSON returned by Gemini:",
-            text
-        );
-
-
-        /*
-         * Attempt to remove accidental markdown fences.
-         */
-
-        const cleaned =
-            text
-                .replace(/^```json\s*/i, "")
-                .replace(/^```\s*/i, "")
-                .replace(/\s*```$/i, "")
-                .trim();
-
-
-        try {
-
-            return JSON.parse(cleaned);
-
-        } catch {
-
-            throw new Error(
-                "AI returned invalid JSON."
-            );
-
-        }
-
-    }
-
-}
-
-
-/* =========================================================
-   GENERATE INITIAL PLAN
+   GENERATE PLAN
    ========================================================= */
 
 export async function generatePlan(goal) {
@@ -324,7 +377,7 @@ export async function generatePlan(goal) {
     if (goal.length > 5000) {
 
         throw new Error(
-            "Goal is too long. Please keep it under 5000 characters."
+            "Goal is too long."
         );
 
     }
@@ -332,27 +385,29 @@ export async function generatePlan(goal) {
 
     const prompt = `
 
-Create an ActionForge execution plan for this goal:
+Create an ActionForge execution plan.
+
+USER GOAL:
 
 ${goal.trim()}
+
 
 Remember:
 
 - Do not browse the web.
 - Do not search the web.
-- Do not use Google Search.
-- Use only the information supplied above.
-- Return JSON only.
+- Use only the information provided.
+- Make reasonable assumptions if necessary.
+- Return ONLY the requested JSON object.
 
 `;
 
 
     const text =
-        await generateContent(prompt);
+        await callAI(prompt);
 
 
-    return parseJSON(text);
-
+    return extractJSON(text);
 }
 
 
@@ -389,7 +444,9 @@ export async function replan(
 
     const prompt = `
 
-An ActionForge user already has this plan:
+You are adapting an existing ActionForge plan.
+
+EXISTING PLAN:
 
 ${JSON.stringify(
     originalPlan,
@@ -398,12 +455,12 @@ ${JSON.stringify(
 )}
 
 
-The user has encountered this problem:
+NEW REALITY:
 
 ${problem.trim()}
 
 
-Adapt the existing plan to the new reality.
+Adapt the existing plan.
 
 DO NOT create an unrelated plan.
 
@@ -412,18 +469,16 @@ Preserve the original goal.
 Analyze:
 
 1. What changed?
-2. Which tasks are no longer necessary?
-3. Which tasks need modification?
+2. Which tasks should be removed?
+3. Which tasks should be modified?
 4. Which tasks should be reordered?
 5. Which dependencies changed?
-6. Is the original deadline still realistic?
+6. Is the deadline still realistic?
 7. What is now the critical path?
 8. What should the user focus on immediately?
 
 
-Return ONLY valid JSON.
-
-Use this structure:
+Return ONLY this JSON structure:
 
 {
   "updated_plan": {
@@ -431,7 +486,9 @@ Use this structure:
     "summary": "string",
     "deadline": "string",
     "priority": "low | medium | high | critical",
+
     "assumptions": [],
+
     "tasks": [
       {
         "id": "T1",
@@ -442,7 +499,9 @@ Use this structure:
         "dependencies": []
       }
     ],
+
     "critical_path": [],
+
     "insight": "string"
   },
 
@@ -460,9 +519,7 @@ Do not perform web searches.
 
 Do not use Google Search.
 
-Do not use external tools.
-
-Use only the existing plan and the user's problem.
+Use only the existing plan and the user's new information.
 
 Return JSON only.
 
@@ -470,9 +527,8 @@ Return JSON only.
 
 
     const text =
-        await generateContent(prompt);
+        await callAI(prompt);
 
 
-    return parseJSON(text);
-
+    return extractJSON(text);
 }
