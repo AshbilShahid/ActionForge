@@ -12,6 +12,7 @@
     "@netlify/functions": "^3.0.0",
     "dotenv": "^17.0.0",
     "openai": "^5.0.0"
+    "@google/genai": "^1.0.0"
   },
   "devDependencies": {
     "netlify-cli": "^23.0.0"
