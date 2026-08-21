@@ -31,7 +31,7 @@ const client = new OpenAI({
     /*
      * AIHubMix OpenAI-compatible endpoint.
      */
-    baseURL: "https://api.inferera.com"
+    baseURL: "https://aihubmix.com/v1"
 
 });
 
