@@ -5,13 +5,14 @@ if (!apiKey) {
 }
 
 const API_URL = "https://api.b.ai/v1/chat/completions";
-const MODEL = "gpt-5.2";
+const MODEL = "deepseek-v4-flash";
 
 
 const SYSTEM_PROMPT = `
 You are ActionForge, an AI execution-planning assistant.
 
-Turn the user's goal into a practical, realistic action plan.
+Your job is to transform a user's goal into a practical,
+realistic and executable action plan.
 
 IMPORTANT:
 - Do NOT browse the web.
@@ -59,6 +60,7 @@ Rules:
 - Keep the number of tasks reasonable.
 - Tasks must be concrete and actionable.
 - Prioritize actions that directly move the user toward their goal.
+- Do not add information that requires web research.
 `;
 
 
@@ -91,11 +93,12 @@ async function callAI(userPrompt) {
             ],
 
             temperature: 0.2,
-            max_tokens: 4000,
+            max_tokens: 4000
 
-            // We intentionally provide NO tools.
-            // Therefore ActionForge does not request
-            // web search or external tool access.
+            // IMPORTANT:
+            // No tools are supplied.
+            // ActionForge therefore does not request
+            // web search or external tools.
         })
     });
 
@@ -151,14 +154,14 @@ async function callAI(userPrompt) {
 function extractText(data) {
 
     /*
-     * OpenAI-compatible Chat Completions response:
+     * Standard OpenAI-compatible response:
      *
      * choices[0].message.content
      */
 
     if (
-        data?.choices?.[0]?.message &&
-        typeof data.choices[0].message.content === "string"
+        typeof data?.choices?.[0]?.message?.content ===
+        "string"
     ) {
 
         return data.choices[0]
@@ -169,8 +172,8 @@ function extractText(data) {
 
 
     /*
-     * Some providers may return content as
-     * an array of objects.
+     * Some providers may return content
+     * as an array.
      */
 
     if (
@@ -202,15 +205,22 @@ function extractText(data) {
                 .filter(Boolean);
 
 
-        if (parts.length) {
-            return parts.join("\n").trim();
+        if (parts.length > 0) {
+
+            return parts
+                .join("\n")
+                .trim();
         }
     }
 
 
     console.error(
         "FULL B.AI RESPONSE:",
-        JSON.stringify(data, null, 2)
+        JSON.stringify(
+            data,
+            null,
+            2
+        )
     );
 
 
@@ -239,21 +249,28 @@ function parseJSON(text) {
 
 
     /*
-     * Remove Markdown code fences if the
-     * model ignored the instruction.
+     * Remove Markdown fences.
      */
 
     cleaned =
         cleaned
-            .replace(/^```json\s*/i, "")
-            .replace(/^```\s*/i, "")
-            .replace(/\s*```$/i, "")
+            .replace(
+                /^```json\s*/i,
+                ""
+            )
+            .replace(
+                /^```\s*/i,
+                ""
+            )
+            .replace(
+                /\s*```$/i,
+                ""
+            )
             .trim();
 
 
     /*
-     * First attempt:
-     * response is already valid JSON.
+     * Try direct JSON.
      */
 
     try {
@@ -266,8 +283,7 @@ function parseJSON(text) {
 
 
     /*
-     * Second attempt:
-     * extract JSON object from surrounding text.
+     * Try extracting JSON from surrounding text.
      */
 
     const start =
@@ -303,8 +319,7 @@ function parseJSON(text) {
 
 
     /*
-     * Keep the raw response visible in
-     * Netlify logs for debugging.
+     * Debugging information.
      */
 
     console.error(
@@ -321,7 +336,8 @@ function parseJSON(text) {
 
 
     throw new Error(
-        "RAW_AI_RESPONSE::" + cleaned
+        "RAW_AI_RESPONSE::" +
+        cleaned
     );
 }
 
@@ -469,7 +485,6 @@ Use this structure:
   },
   "changes": []
 }
-
 
 IMPORTANT:
 
