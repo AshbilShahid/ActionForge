@@ -1,38 +1,22 @@
-import { GoogleGenAI } from "@google/genai";
-
-
 /* =========================================================
    ACTIONFORGE AI ENGINE
+   AIHubMix Responses API
    ========================================================= */
 
 const apiKey = process.env.AIHUBMIX_API_KEY;
 
 if (!apiKey) {
     throw new Error(
-        "AIHUBMIX_API_KEY is missing from the Netlify Function environment."
+        "AIHUBMIX_API_KEY is missing from Netlify."
     );
 }
 
 
-const MODEL = "gemini-3.7-flash-free";
+const API_URL =
+    "https://aihubmix.com/v1/responses";
 
-
-const ai = new GoogleGenAI({
-    apiKey: apiKey.trim(),
-
-    httpOptions: {
-        baseUrl: "https://aihubmix.com/gemini"
-    }
-});
-
-
-console.log(
-    "ActionForge AI initialized:",
-    {
-        model: MODEL,
-        provider: "AIHubMix"
-    }
-);
+const MODEL =
+    "gemini-3.7-flash-free";
 
 
 /* =========================================================
@@ -40,9 +24,10 @@ console.log(
    ========================================================= */
 
 const SYSTEM_PROMPT = `
-You are ActionForge.
+You are ActionForge, an intelligent execution-planning agent.
 
-You transform a user's goal into a practical execution plan.
+Your job is to transform a user's goal into a practical,
+realistic and executable action plan.
 
 IMPORTANT:
 
@@ -54,27 +39,14 @@ DO NOT use Google Search.
 
 DO NOT use external search tools.
 
-Use ONLY the information provided by the user.
+DO NOT request outside information.
 
-If information is missing, make reasonable assumptions.
+Use ONLY information supplied by the user.
 
+If information is missing, make reasonable assumptions
+and place them in the assumptions field.
 
-Your plans should:
-
-1. Understand the user's goal.
-2. Identify the desired outcome.
-3. Identify deadlines.
-4. Identify constraints.
-5. Break the goal into concrete tasks.
-6. Remove unnecessary work.
-7. Identify dependencies.
-8. Estimate realistic time requirements.
-9. Prioritize tasks.
-10. Identify the critical path.
-11. Give one useful strategic insight.
-
-
-Avoid vague tasks.
+Create concrete actions rather than vague advice.
 
 Bad:
 
@@ -84,33 +56,22 @@ Good:
 
 "Create the homepage structure and write the hero section."
 
-
-=========================================================
-OUTPUT
-=========================================================
-
-Return ONLY a JSON object.
-
-Do not write an introduction.
-
-Do not write an explanation.
+Return ONLY valid JSON.
 
 Do not use Markdown.
 
 Do not use code fences.
 
-Use exactly this structure:
+Do not include explanations outside the JSON.
+
+The JSON must follow this structure:
 
 {
   "goal": "string",
   "summary": "string",
   "deadline": "string",
   "priority": "low | medium | high | critical",
-
-  "assumptions": [
-    "string"
-  ],
-
+  "assumptions": [],
   "tasks": [
     {
       "id": "T1",
@@ -121,59 +82,251 @@ Use exactly this structure:
       "dependencies": []
     }
   ],
-
-  "critical_path": [
-    "T1"
-  ],
-
+  "critical_path": [],
   "insight": "string"
 }
-
 
 Rules:
 
 - Every task must have a unique ID.
-- IDs must be T1, T2, T3, etc.
-- Dependencies must reference existing IDs.
-- critical_path must reference existing IDs.
+- Use T1, T2, T3, etc.
+- Dependencies must reference existing task IDs.
+- critical_path must reference existing task IDs.
 - estimated_minutes must be an integer.
 - Keep the number of tasks reasonable.
 - Do not invent unnecessary requirements.
+- Prioritize actions that directly move the user toward the goal.
 - Return JSON only.
 `;
 
 
 /* =========================================================
-   EXTRACT JSON SAFELY
+   CALL AIHUBMIX
    ========================================================= */
 
-function extractJSON(text) {
+async function callAI(input) {
 
-    if (!text) {
-        throw new Error(
-            "AI returned an empty response."
+    console.log(
+        `ActionForge → AIHubMix → ${MODEL}`
+    );
+
+
+    const response = await fetch(
+        API_URL,
+        {
+            method: "POST",
+
+            headers: {
+                "Authorization":
+                    `Bearer ${apiKey.trim()}`,
+
+                "Content-Type":
+                    "application/json"
+            },
+
+            body: JSON.stringify({
+
+                model: MODEL,
+
+                input: [
+                    {
+                        role: "system",
+
+                        content: [
+                            {
+                                type: "input_text",
+
+                                text: SYSTEM_PROMPT
+                            }
+                        ]
+                    },
+
+                    {
+                        role: "user",
+
+                        content: [
+                            {
+                                type: "input_text",
+
+                                text: input
+                            }
+                        ]
+                    }
+                ],
+
+                max_output_tokens: 4000,
+
+                temperature: 0.2
+
+            })
+        }
+    );
+
+
+    const raw =
+        await response.text();
+
+
+    console.log(
+        "AIHubMix HTTP status:",
+        response.status
+    );
+
+
+    if (!response.ok) {
+
+        console.error(
+            "AIHubMix error:",
+            raw
         );
+
+        throw new Error(
+            `${response.status} ${raw}`
+        );
+
     }
 
 
-    let cleaned = text.trim();
+    let data;
 
+
+    try {
+
+        data = JSON.parse(raw);
+
+    } catch {
+
+        console.error(
+            "AIHubMix returned non-JSON:",
+            raw
+        );
+
+        throw new Error(
+            "AIHubMix returned an invalid API response."
+        );
+
+    }
+
+
+    return data;
+}
+
+
+/* =========================================================
+   EXTRACT TEXT FROM RESPONSES API
+   ========================================================= */
+
+function extractText(data) {
 
     /*
-     * Remove Markdown code fences.
+     * AIHubMix Responses API normally returns
+     * generated content inside output.
      */
 
-    cleaned = cleaned
-        .replace(/^```json\s*/i, "")
-        .replace(/^```javascript\s*/i, "")
-        .replace(/^```\s*/i, "")
-        .replace(/\s*```$/i, "")
-        .trim();
+    if (
+        typeof data?.output_text === "string" &&
+        data.output_text.trim()
+    ) {
+
+        return data.output_text.trim();
+
+    }
 
 
     /*
-     * First attempt:
-     * parse the entire response.
+     * Fallback for structured output arrays.
+     */
+
+    if (Array.isArray(data?.output)) {
+
+        for (const item of data.output) {
+
+            if (!Array.isArray(item?.content)) {
+                continue;
+            }
+
+
+            for (const content of item.content) {
+
+                if (
+                    typeof content?.text === "string" &&
+                    content.text.trim()
+                ) {
+
+                    return content.text.trim();
+
+                }
+
+            }
+
+        }
+
+    }
+
+
+    /*
+     * Another possible response structure.
+     */
+
+    if (
+        typeof data?.choices?.[0]?.message?.content ===
+        "string"
+    ) {
+
+        return data.choices[0]
+            .message
+            .content
+            .trim();
+
+    }
+
+
+    console.error(
+        "Could not find generated text in response:",
+        JSON.stringify(data, null, 2)
+    );
+
+
+    throw new Error(
+        "AI returned no usable text."
+    );
+}
+
+
+/* =========================================================
+   ROBUST JSON EXTRACTION
+   ========================================================= */
+
+function parseJSON(text) {
+
+    if (!text) {
+
+        throw new Error(
+            "AI returned an empty response."
+        );
+
+    }
+
+
+    let cleaned =
+        text.trim();
+
+
+    /*
+     * Remove Markdown fences if the model
+     * ignored our instruction.
+     */
+
+    cleaned =
+        cleaned
+            .replace(/^```json\s*/i, "")
+            .replace(/^```\s*/i, "")
+            .replace(/\s*```$/i, "")
+            .trim();
+
+
+    /*
+     * Direct JSON.
      */
 
     try {
@@ -181,40 +334,37 @@ function extractJSON(text) {
         return JSON.parse(cleaned);
 
     } catch {
-        // Continue to recovery.
+        // Continue.
     }
 
 
     /*
-     * Second attempt:
-     * Find the first JSON object.
+     * Find JSON object inside surrounding text.
      */
 
-    const firstBrace =
+    const start =
         cleaned.indexOf("{");
 
-    const lastBrace =
+    const end =
         cleaned.lastIndexOf("}");
 
 
     if (
-        firstBrace !== -1 &&
-        lastBrace !== -1 &&
-        lastBrace > firstBrace
+        start !== -1 &&
+        end !== -1 &&
+        end > start
     ) {
 
-        const possibleJSON =
-            cleaned.slice(
-                firstBrace,
-                lastBrace + 1
+        const extracted =
+            cleaned.substring(
+                start,
+                end + 1
             );
 
 
         try {
 
-            return JSON.parse(
-                possibleJSON
-            );
+            return JSON.parse(extracted);
 
         } catch {
             // Continue.
@@ -224,134 +374,24 @@ function extractJSON(text) {
 
 
     /*
-     * Third attempt:
-     * Sometimes Gemini returns a JSON object
-     * inside a quoted string.
-     */
-
-    try {
-
-        const parsed =
-            JSON.parse(cleaned);
-
-        if (typeof parsed === "string") {
-
-            return JSON.parse(parsed);
-
-        }
-
-    } catch {
-        // Continue.
-    }
-
-
-    /*
-     * Nothing worked.
-     *
-     * Log the actual AI response so we can
-     * diagnose it from Netlify logs.
+     * Log the exact response so we can
+     * diagnose it if something goes wrong.
      */
 
     console.error(
-        "========== INVALID AI RESPONSE =========="
+        "========== AI RAW TEXT =========="
     );
 
-    console.error(
-        cleaned
-    );
+    console.error(text);
 
     console.error(
-        "=========================================="
+        "================================="
     );
 
 
     throw new Error(
         "AI returned invalid JSON."
     );
-}
-
-
-/* =========================================================
-   CALL GEMINI
-   ========================================================= */
-
-async function callAI(prompt) {
-
-    console.log(
-        `Calling ${MODEL} through AIHubMix...`
-    );
-
-
-    try {
-
-        const response =
-            await ai.models.generateContent({
-
-                model: MODEL,
-
-                contents: prompt,
-
-                config: {
-
-                    systemInstruction:
-                        SYSTEM_PROMPT,
-
-                    temperature: 0.2,
-
-                    responseMimeType:
-                        "application/json"
-
-                }
-
-            });
-
-
-        /*
-         * Gemini SDK normally exposes
-         * the generated text through .text
-         */
-
-        const text =
-            response?.text;
-
-
-        if (!text) {
-
-            console.error(
-                "Complete Gemini response:",
-                response
-            );
-
-            throw new Error(
-                "AI returned an empty response."
-            );
-
-        }
-
-
-        console.log(
-            "AI response received successfully."
-        );
-
-
-        return text;
-
-
-    } catch (error) {
-
-        console.error(
-            "AIHubMix/Gemini error:",
-            error
-        );
-
-
-        throw new Error(
-            error?.message ||
-            "AI request failed."
-        );
-
-    }
-
 }
 
 
@@ -374,40 +414,32 @@ export async function generatePlan(goal) {
     }
 
 
-    if (goal.length > 5000) {
+    const input = `
 
-        throw new Error(
-            "Goal is too long."
-        );
-
-    }
-
-
-    const prompt = `
-
-Create an ActionForge execution plan.
-
-USER GOAL:
+Create an ActionForge execution plan for:
 
 ${goal.trim()}
-
 
 Remember:
 
 - Do not browse the web.
-- Do not search the web.
-- Use only the information provided.
-- Make reasonable assumptions if necessary.
-- Return ONLY the requested JSON object.
+- Do not perform web searches.
+- Do not use Google Search.
+- Use only information supplied by the user.
+- Return ONLY the requested JSON.
 
 `;
 
 
+    const data =
+        await callAI(input);
+
+
     const text =
-        await callAI(prompt);
+        extractText(data);
 
 
-    return extractJSON(text);
+    return parseJSON(text);
 }
 
 
@@ -442,7 +474,7 @@ export async function replan(
     }
 
 
-    const prompt = `
+    const input = `
 
 You are adapting an existing ActionForge plan.
 
@@ -466,7 +498,7 @@ DO NOT create an unrelated plan.
 
 Preserve the original goal.
 
-Analyze:
+Determine:
 
 1. What changed?
 2. Which tasks should be removed?
@@ -478,7 +510,7 @@ Analyze:
 8. What should the user focus on immediately?
 
 
-Return ONLY this JSON structure:
+Return ONLY valid JSON using this structure:
 
 {
   "updated_plan": {
@@ -486,9 +518,7 @@ Return ONLY this JSON structure:
     "summary": "string",
     "deadline": "string",
     "priority": "low | medium | high | critical",
-
     "assumptions": [],
-
     "tasks": [
       {
         "id": "T1",
@@ -499,25 +529,18 @@ Return ONLY this JSON structure:
         "dependencies": []
       }
     ],
-
     "critical_path": [],
-
     "insight": "string"
   },
-
-  "changes": [
-    "string"
-  ]
+  "changes": []
 }
 
 
-IMPORTANT:
+Do NOT browse the web.
 
-Do not browse the web.
+Do NOT perform web searches.
 
-Do not perform web searches.
-
-Do not use Google Search.
+Do NOT use Google Search.
 
 Use only the existing plan and the user's new information.
 
@@ -526,9 +549,13 @@ Return JSON only.
 `;
 
 
+    const data =
+        await callAI(input);
+
+
     const text =
-        await callAI(prompt);
+        extractText(data);
 
 
-    return extractJSON(text);
+    return parseJSON(text);
 }
