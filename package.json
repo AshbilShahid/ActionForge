@@ -1,18 +1,14 @@
 {
   "name": "actionforge",
   "version": "1.0.0",
-  "description": "AI-powered execution planning and adaptive replanning agent",
-  "private": false,
+  "description": "AI-powered execution planning and adaptive replanning assistant",
   "type": "module",
   "scripts": {
-    "dev": "netlify dev",
     "start": "netlify dev"
   },
   "dependencies": {
-    "@netlify/functions": "^3.0.0",
-    "dotenv": "^17.0.0",
+    "@google/genai": "^1.0.0",
     "openai": "^5.0.0"
-    "@google/genai": "^1.0.0"
   },
   "devDependencies": {
     "netlify-cli": "^23.0.0"
