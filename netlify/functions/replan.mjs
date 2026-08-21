@@ -2,50 +2,68 @@
    ACTIONFORGE REPLAN FUNCTION
    ========================================================= */
 
-import { replan } from "../../server/ai.mjs";
+import {
+    replan
+} from "../../server/ai.mjs";
+
+
+/* =========================================================
+   RESPONSE HELPER
+   ========================================================= */
+
+function jsonResponse(
+    data,
+    status = 200
+) {
+
+    return new Response(
+        JSON.stringify(data),
+        {
+            status,
+
+            headers: {
+                "Content-Type":
+                    "application/json",
+
+                "Cache-Control":
+                    "no-store"
+            }
+        }
+    );
+}
 
 
 /* =========================================================
    NETLIFY FUNCTION
    ========================================================= */
 
-export default async (request) => {
+export default async function handler(
+    request
+) {
 
     try {
 
         /*
-        =====================================================
-        METHOD CHECK
-        =====================================================
-        */
+         * Only POST is allowed.
+         */
 
         if (
             request.method !== "POST"
         ) {
 
-            return new Response(
-                JSON.stringify({
+            return jsonResponse(
+                {
                     error:
                         "Method not allowed."
-                }),
-                {
-                    status: 405,
-
-                    headers: {
-                        "Content-Type":
-                            "application/json"
-                    }
-                }
+                },
+                405
             );
-
         }
 
 
         /*
-        =====================================================
-        READ REQUEST BODY
-        =====================================================
-        */
+         * Read request body.
+         */
 
         let body;
 
@@ -58,31 +76,17 @@ export default async (request) => {
         }
         catch {
 
-            return new Response(
-                JSON.stringify({
+            return jsonResponse(
+                {
                     error:
                         "Invalid request body."
-                }),
-                {
-                    status: 400,
-
-                    headers: {
-                        "Content-Type":
-                            "application/json"
-                    }
-                }
+                },
+                400
             );
-
         }
 
 
-        /*
-        =====================================================
-        EXTRACT DATA
-        =====================================================
-        */
-
-        const plan =
+        const originalPlan =
             body?.plan;
 
 
@@ -91,39 +95,28 @@ export default async (request) => {
 
 
         /*
-        =====================================================
-        VALIDATE PLAN
-        =====================================================
-        */
+         * Validate plan.
+         */
 
         if (
-            !plan ||
-            typeof plan !== "object"
+            !originalPlan ||
+            typeof originalPlan !==
+            "object"
         ) {
 
-            return new Response(
-                JSON.stringify({
+            return jsonResponse(
+                {
                     error:
                         "A valid existing plan is required."
-                }),
-                {
-                    status: 400,
-
-                    headers: {
-                        "Content-Type":
-                            "application/json"
-                    }
-                }
+                },
+                400
             );
-
         }
 
 
         /*
-        =====================================================
-        VALIDATE PROBLEM
-        =====================================================
-        */
+         * Validate problem.
+         */
 
         if (
             !problem ||
@@ -131,102 +124,51 @@ export default async (request) => {
             !problem.trim()
         ) {
 
-            return new Response(
-                JSON.stringify({
-                    error:
-                        "A valid problem description is required."
-                }),
+            return jsonResponse(
                 {
-                    status: 400,
-
-                    headers: {
-                        "Content-Type":
-                            "application/json"
-                    }
-                }
+                    error:
+                        "Tell ActionForge what changed."
+                },
+                400
             );
-
         }
 
 
         /*
-        =====================================================
-        PROBLEM LENGTH PROTECTION
-        =====================================================
-        */
+         * Prevent accidentally huge requests.
+         */
 
         if (
             problem.length > 3000
         ) {
 
-            return new Response(
-                JSON.stringify({
+            return jsonResponse(
+                {
                     error:
                         "Problem description is too long."
-                }),
-                {
-                    status: 400,
-
-                    headers: {
-                        "Content-Type":
-                            "application/json"
-                    }
-                }
+                },
+                400
             );
-
         }
 
 
         /*
-        =====================================================
-        ADAPT PLAN
-        =====================================================
-        */
+         * Ask the AI engine to adapt the plan.
+         */
 
         const result =
             await replan(
-                plan,
+                originalPlan,
                 problem.trim()
             );
 
 
         /*
-        =====================================================
-        VALIDATE AI RESULT
-        =====================================================
-        */
+         * Return exactly what app.js expects.
+         */
 
-        if (
-            !result ||
-            typeof result !== "object"
-        ) {
-
-            throw new Error(
-                "AI returned an invalid adaptation."
-            );
-
-        }
-
-
-        if (
-            !result.updated_plan
-        ) {
-
-            throw new Error(
-                "AI adaptation did not contain an updated plan."
-            );
-
-        }
-
-
-        /*
-        =====================================================
-        SUCCESS
-        =====================================================
-        */
-
-        return new Response(
-            JSON.stringify({
+        return jsonResponse(
+            {
                 updated_plan:
                     result.updated_plan,
 
@@ -236,25 +178,12 @@ export default async (request) => {
                     )
                         ? result.changes
                         : []
-            }),
-            {
-                status: 200,
-
-                headers: {
-                    "Content-Type":
-                        "application/json"
-                }
-            }
+            },
+            200
         );
 
     }
     catch (error) {
-
-        /*
-        =====================================================
-        ERROR HANDLING
-        =====================================================
-        */
 
         console.error(
             "REPLAN ERROR:",
@@ -262,22 +191,13 @@ export default async (request) => {
         );
 
 
-        return new Response(
-            JSON.stringify({
+        return jsonResponse(
+            {
                 error:
                     error?.message ||
-                    "Unable to adapt the plan."
-            }),
-            {
-                status: 500,
-
-                headers: {
-                    "Content-Type":
-                        "application/json"
-                }
-            }
+                    "Unable to adapt plan."
+            },
+            500
         );
-
     }
-
-};
+}
