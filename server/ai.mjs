@@ -1,40 +1,47 @@
 /* =========================================================
    ACTIONFORGE AI ENGINE
-   Provider-independent OpenAI-compatible API
+   AIHubMix + Gemini 3.7 Flash Free
    ========================================================= */
 
-const apiKey = process.env.AI_API_KEY;
+
+/* =========================================================
+   CONFIGURATION
+   ========================================================= */
+
+const apiKey = process.env.AIHUBMIX_API_KEY;
 
 if (!apiKey) {
     throw new Error(
-        "AI_API_KEY is missing from the Netlify Function environment."
+        "AIHUBMIX_API_KEY is missing from the Netlify Function environment."
     );
 }
 
 
-/* =========================================================
-   PROVIDER CONFIGURATION
-   ========================================================= */
-
+/*
+ * AIHubMix OpenAI-compatible endpoint.
+ */
 const API_URL =
-    process.env.AI_BASE_URL ||
-    "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions";
+    "https://aihubmix.com/v1/chat/completions";
 
+
+/*
+ * Model selected for this project.
+ */
 const MODEL =
-    process.env.AI_MODEL ||
     "gemini-3.7-flash-free";
 
 
 /*
- * Only log safe diagnostic information.
- * Never log the complete API key.
+ * Safe diagnostic logging.
+ *
+ * We NEVER print the complete API key.
  */
 console.log(
     "ActionForge AI configuration:",
     {
-        baseURL: API_URL,
+        provider: "AIHubMix",
         model: MODEL,
-        keyDetected:
+        apiKeyDetected:
             apiKey.slice(0, 3) +
             "..." +
             apiKey.slice(-4)
@@ -43,7 +50,7 @@ console.log(
 
 
 /* =========================================================
-   SYSTEM PROMPT
+   ACTIONFORGE SYSTEM PROMPT
    ========================================================= */
 
 const SYSTEM_PROMPT = `
@@ -51,16 +58,19 @@ const SYSTEM_PROMPT = `
 You are ActionForge, an intelligent execution-planning agent.
 
 Your purpose is to transform vague human goals into practical,
-executable action plans.
+realistic, executable action plans.
+
+You help users turn ideas and objectives into concrete steps.
 
 You are NOT a web research assistant.
 
-IMPORTANT:
+IMPORTANT AI RULES:
 
-- Do not browse the web.
-- Do not perform web searches.
-- Do not use web-search tools.
-- Do not request external information.
+- Do NOT browse the web.
+- Do NOT perform web searches.
+- Do NOT use web-search tools.
+- Do NOT request external information.
+- Do NOT invent facts that require web research.
 - Work only with information supplied by the user.
 - If information is missing, make reasonable assumptions.
 - Clearly state important assumptions.
@@ -69,40 +79,57 @@ Your planning process:
 
 1. Understand the user's objective.
 2. Identify the desired outcome.
-3. Identify deadlines and constraints.
-4. Break the objective into meaningful executable tasks.
-5. Remove unnecessary work.
-6. Identify dependencies.
-7. Estimate realistic time requirements.
-8. Prioritize tasks.
-9. Identify the critical path.
-10. Provide one useful strategic insight.
+3. Identify deadlines.
+4. Identify constraints.
+5. Identify available resources when provided.
+6. Break the objective into meaningful executable tasks.
+7. Remove unnecessary work.
+8. Identify dependencies.
+9. Estimate realistic time requirements.
+10. Prioritize tasks.
+11. Identify the critical path.
+12. Provide one useful strategic insight.
 
-Prefer concrete actions.
+Prefer concrete actions over vague advice.
 
-Avoid vague tasks.
-
-Bad:
+Bad task:
 
 "Work on the website."
 
-Good:
+Good task:
 
 "Create the homepage structure and write the hero section."
 
-Keep the number of tasks reasonable.
-
 Every task should directly contribute toward the user's goal.
 
+Do not create unnecessary tasks.
+
+Keep the number of tasks reasonable.
+
+Prioritize execution.
+
+
+=========================================================
+OUTPUT FORMAT
+=========================================================
 
 RETURN ONLY VALID JSON.
 
-Use this structure:
+Do NOT use markdown.
+
+Do NOT wrap the JSON in a code block.
+
+Do NOT include explanations outside the JSON.
+
+Use exactly this general structure:
 
 {
   "goal": "string",
+
   "summary": "string",
+
   "deadline": "string",
+
   "priority": "low | medium | high | critical",
 
   "assumptions": [
@@ -129,18 +156,23 @@ Use this structure:
 }
 
 
-RULES:
+=========================================================
+JSON RULES
+=========================================================
 
 - Every task must have a unique ID.
+- Task IDs should use the format T1, T2, T3, etc.
 - Dependencies must reference existing task IDs.
 - critical_path must reference existing task IDs.
 - estimated_minutes must be an integer.
 - Keep the task count reasonable.
 - Do not invent unnecessary requirements.
 - Prioritize actions that directly move the user toward the goal.
-- Do not include markdown.
-- Do not wrap JSON in code fences.
-- Return JSON only.
+- Make the plan practical rather than theoretical.
+- If the user gives a deadline, respect it.
+- If the user does not give a deadline, clearly indicate that.
+- If information is missing, put reasonable assumptions in assumptions.
+
 
 `;
 
@@ -152,46 +184,72 @@ RULES:
 async function callAI(messages) {
 
     console.log(
-        `ActionForge calling model: ${MODEL}`
+        `ActionForge calling AIHubMix model: ${MODEL}`
     );
 
 
-    const response = await fetch(
-        API_URL,
-        {
-            method: "POST",
-
-            headers: {
-                "Content-Type": "application/json",
-
-                "Authorization":
-                    `Bearer ${apiKey.trim()}`
-            },
-
-            body: JSON.stringify({
-
-                model: MODEL,
-
-                messages: messages,
-
-                response_format: {
-                    type: "json_object"
-                }
-
-            })
-        }
-    );
+    let response;
 
 
-    const text = await response.text();
+    try {
+
+        response = await fetch(
+            API_URL,
+            {
+                method: "POST",
+
+                headers: {
+                    "Content-Type": "application/json",
+
+                    "Authorization":
+                        `Bearer ${apiKey.trim()}`
+                },
+
+                body: JSON.stringify({
+
+                    model: MODEL,
+
+                    messages: messages,
+
+                    response_format: {
+                        type: "json_object"
+                    }
+
+                })
+            }
+        );
+
+    } catch (error) {
+
+        console.error(
+            "Network error while contacting AIHubMix:",
+            error
+        );
+
+        throw new Error(
+            `Unable to connect to AIHubMix: ${
+                error?.message || "Network error"
+            }`
+        );
+
+    }
+
+
+    const text =
+        await response.text();
 
 
     console.log(
-        `AI provider response status: ${response.status}`
+        `AIHubMix response status: ${response.status}`
     );
 
 
     if (!response.ok) {
+
+        console.error(
+            "AIHubMix API error:",
+            text
+        );
 
         throw new Error(
             `${response.status} ${text}`
@@ -202,25 +260,92 @@ async function callAI(messages) {
 
     let data;
 
+
     try {
 
-        data = JSON.parse(text);
+        data =
+            JSON.parse(text);
 
-    } catch {
+    } catch (error) {
+
+        console.error(
+            "AIHubMix returned invalid JSON:",
+            text
+        );
 
         throw new Error(
-            "AI provider returned invalid JSON."
+            "AIHubMix returned an invalid response."
         );
 
     }
 
 
     return data;
+
 }
 
 
 /* =========================================================
-   GENERATE PLAN
+   PARSE AI JSON
+   ========================================================= */
+
+function parseAIResponse(content) {
+
+    if (!content) {
+
+        throw new Error(
+            "AI returned an empty response."
+        );
+
+    }
+
+
+    try {
+
+        return JSON.parse(content);
+
+    } catch (error) {
+
+        console.error(
+            "Invalid JSON returned by AI:",
+            content
+        );
+
+
+        /*
+         * Sometimes a model may accidentally return
+         * markdown code fences despite our instructions.
+         *
+         * Try to recover the JSON.
+         */
+
+        const cleaned =
+            content
+                .replace(/^```json\s*/i, "")
+                .replace(/^```\s*/i, "")
+                .replace(/\s*```$/i, "")
+                .trim();
+
+
+        try {
+
+            return JSON.parse(cleaned);
+
+        } catch {
+
+            throw new Error(
+                "AI returned invalid JSON."
+            );
+
+        }
+
+    }
+
+}
+
+
+/* =========================================================
+   GENERATE INITIAL PLAN
    ========================================================= */
 
 export async function generatePlan(goal) {
@@ -238,56 +363,55 @@ export async function generatePlan(goal) {
     }
 
 
-    const data = await callAI([
+    /*
+     * Prevent unnecessarily huge requests.
+     */
+    if (goal.length > 5000) {
 
-        {
-            role: "system",
-            content: SYSTEM_PROMPT
-        },
+        throw new Error(
+            "Goal is too long. Please keep it under 5000 characters."
+        );
 
-        {
-            role: "user",
-            content: goal.trim()
-        }
+    }
 
-    ]);
+
+    console.log(
+        "Generating ActionForge plan..."
+    );
+
+
+    const response =
+        await callAI([
+
+            {
+                role: "system",
+
+                content: SYSTEM_PROMPT
+            },
+
+            {
+                role: "user",
+
+                content: goal.trim()
+            }
+
+        ]);
 
 
     const content =
-        data?.choices?.[0]?.message?.content;
+        response
+            ?.choices?.[0]
+            ?.message
+            ?.content;
 
 
-    if (!content) {
-
-        throw new Error(
-            "AI returned an empty response."
-        );
-
-    }
-
-
-    try {
-
-        return JSON.parse(content);
-
-    } catch {
-
-        console.error(
-            "Invalid JSON returned by AI:",
-            content
-        );
-
-        throw new Error(
-            "AI returned invalid JSON."
-        );
-
-    }
+    return parseAIResponse(content);
 
 }
 
 
 /* =========================================================
-   REPLAN
+   ADAPT / REPLAN EXISTING PLAN
    ========================================================= */
 
 export async function replan(
@@ -317,64 +441,133 @@ export async function replan(
     }
 
 
+    if (problem.length > 5000) {
+
+        throw new Error(
+            "Problem description is too long."
+        );
+
+    }
+
+
+    /*
+     * Convert the existing plan into a compact
+     * JSON representation for the model.
+     */
+
+    const originalPlanJSON =
+        JSON.stringify(
+            originalPlan,
+            null,
+            2
+        );
+
+
     const prompt = `
 
 Here is the user's existing ActionForge plan:
 
-${JSON.stringify(
-    originalPlan,
-    null,
-    2
-)}
+${originalPlanJSON}
 
+
+=========================================================
+
+REALITY CHECK / NEW PROBLEM
 
 The user reports:
 
 ${problem.trim()}
 
 
-Adapt the existing plan.
+=========================================================
+
+YOUR TASK
+
+Adapt the existing plan to the new reality.
 
 Do NOT simply create an unrelated new plan.
 
-Preserve the original goal.
-
-Determine:
-
-1. What changed.
-2. Which tasks should be removed.
-3. Which tasks should be reordered.
-4. Which tasks should be modified.
-5. Whether the deadline is still realistic.
-6. What the new critical path is.
+The original goal must remain the central objective.
 
 
-Do not browse the web.
+Analyze:
 
-Do not perform web searches.
+1. What changed?
+2. Which tasks are no longer necessary?
+3. Which tasks need modification?
+4. Which tasks should be reordered?
+5. Which dependencies changed?
+6. How much time remains?
+7. Is the original deadline still realistic?
+8. What is now the critical path?
+9. What should the user focus on immediately?
 
-Do not use web-search tools.
 
-Do not use external information.
+Preserve useful work from the original plan.
 
+Remove unnecessary work.
+
+Prioritize the most important remaining actions.
+
+
+=========================================================
+
+IMPORTANT
+
+Do NOT browse the web.
+
+Do NOT perform web searches.
+
+Do NOT use web-search tools.
+
+Do NOT request external information.
+
+Use only the information provided in the original plan
+and the user's new problem.
+
+
+=========================================================
 
 RETURN ONLY VALID JSON.
 
+Do NOT use markdown.
 
-Use:
+Do NOT wrap the JSON in a code block.
+
+Do NOT include explanations outside the JSON.
+
+
+Use exactly this structure:
 
 {
   "updated_plan": {
     "goal": "string",
+
     "summary": "string",
+
     "deadline": "string",
+
     "priority": "low | medium | high | critical",
 
-    "assumptions": [],
+    "assumptions": [
+      "string"
+    ],
 
-    "tasks": [],
+    "tasks": [
+      {
+        "id": "T1",
+        "title": "string",
+        "description": "string",
+        "priority": "low | medium | high | critical",
+        "estimated_minutes": 60,
+        "dependencies": []
+      }
+    ],
 
-    "critical_path": [],
+    "critical_path": [
+      "T1",
+      "T2"
+    ],
 
     "insight": "string"
   },
@@ -385,64 +578,59 @@ Use:
 }
 
 
-RULES:
+=========================================================
+
+RULES
 
 - Every task must have a unique ID.
+- Task IDs should use T1, T2, T3, etc.
 - Dependencies must reference existing task IDs.
 - critical_path must reference existing task IDs.
 - estimated_minutes must be an integer.
 - Keep the task count reasonable.
 - Focus on adapting the existing plan.
+- Do not invent unnecessary requirements.
 - Do not include markdown.
-- Do not wrap JSON in code fences.
 - Return JSON only.
 
 `;
 
 
-    const data = await callAI([
+    console.log(
+        "Replanning ActionForge plan..."
+    );
 
-        {
-            role: "system",
-            content: SYSTEM_PROMPT
-        },
 
-        {
-            role: "user",
-            content: prompt
-        }
+    const response =
+        await callAI([
 
-    ]);
+            {
+                role: "system",
+
+                content: SYSTEM_PROMPT
+            },
+
+            {
+                role: "user",
+
+                content: prompt
+            }
+
+        ]);
 
 
     const content =
-        data?.choices?.[0]?.message?.content;
+        response
+            ?.choices?.[0]
+            ?.message
+            ?.content;
 
 
-    if (!content) {
-
-        throw new Error(
-            "AI returned an empty response."
-        );
-
-    }
-
-
-    try {
-
-        return JSON.parse(content);
-
-    } catch {
-
-        console.error(
-            "Invalid replanning JSON:",
-            content
-        );
-
-        throw new Error(
-            "AI returned invalid JSON while replanning."
-        );
-
-    }
+    return parseAIResponse(content);
 
 }
+
+
+/* =========================================================
+   END OF ACTIONFORGE AI ENGINE
+   ========================================================= */
