@@ -1,6 +1,5 @@
 /* =========================================================
    ACTIONFORGE AI ENGINE
-   DeepSeek V4 Flash / B.AI
    ========================================================= */
 
 const apiKey = process.env.AI_API_KEY;
@@ -17,23 +16,24 @@ const MODEL =
 
 
 /* =========================================================
-   NORMAL PLAN PROMPT
+   NORMAL PLAN SYSTEM PROMPT
    ========================================================= */
 
 const SYSTEM_PROMPT = `
 You are ActionForge, an AI execution-planning assistant.
 
-Transform the user's goal into a practical execution plan.
+Transform the user's goal into a practical and executable plan.
 
-Do not browse.
-Do not search.
-Do not use tools.
-Use only information supplied by the user.
-Make reasonable assumptions when information is missing.
+IMPORTANT:
+- Do NOT browse the web.
+- Do NOT use web search.
+- Do NOT use external tools.
+- Use ONLY information supplied by the user.
+- Make reasonable assumptions when information is missing.
 
-Return ONLY JSON.
+Return JSON only.
 
-Structure:
+Use this structure:
 
 {
   "goal": "string",
@@ -56,40 +56,36 @@ Structure:
 }
 
 Rules:
-- Use unique task IDs.
 - IDs must be T1, T2, T3, etc.
+- Every task must have a unique ID.
 - Dependencies must reference existing IDs.
 - critical_path must reference existing IDs.
 - estimated_minutes must be an integer.
 - Keep the number of tasks reasonable.
+- Tasks must be concrete and actionable.
+- Keep descriptions concise.
+- Return JSON only.
 `;
 
 
 /* =========================================================
-   REPLAN PROMPT
+   REPLAN SYSTEM PROMPT
    ========================================================= */
 
 const REPLAN_SYSTEM_PROMPT = `
 You are ActionForge.
 
-You modify an existing execution plan after something changes.
+Adapt an existing execution plan based ONLY on the existing plan
+and the user's new problem.
 
-Do not browse.
-Do not search.
-Do not use tools.
+Do NOT browse.
+Do NOT search the web.
+Do NOT use tools.
+Do NOT invent external information.
 
-Use ONLY:
-1. the existing plan
-2. the user's new problem
+Return ONLY valid JSON.
 
-Preserve the original goal.
-
-IMPORTANT:
-Return ONLY a JSON object.
-Do not return Markdown.
-Do not return explanations outside the JSON.
-
-Return:
+The output MUST have exactly this structure:
 
 {
   "updated_plan": {
@@ -98,12 +94,36 @@ Return:
     "deadline": "string",
     "priority": "low | medium | high | critical",
     "assumptions": [],
-    "tasks": [],
+    "tasks": [
+      {
+        "id": "T1",
+        "title": "string",
+        "description": "string",
+        "priority": "low | medium | high | critical",
+        "estimated_minutes": 60,
+        "dependencies": []
+      }
+    ],
     "critical_path": [],
     "insight": "string"
   },
   "changes": []
 }
+
+STRICT RULES:
+
+- Preserve the original goal.
+- Modify only what needs changing.
+- Keep useful existing tasks when possible.
+- Remove unnecessary tasks only when appropriate.
+- Recalculate dependencies.
+- Recalculate critical_path.
+- Keep tasks concise.
+- Use short descriptions.
+- Keep the same general number of tasks unless the problem requires otherwise.
+- "changes" must contain short strings describing what changed.
+- Do not include explanations outside the JSON.
+- Return JSON only.
 `;
 
 
@@ -112,9 +132,9 @@ Return:
    ========================================================= */
 
 async function callAI(
-    systemPrompt,
-    userPrompt,
-    maxTokens
+    messages,
+    maxTokens = 4000,
+    options = {}
 ) {
 
     const response =
@@ -128,9 +148,6 @@ async function callAI(
                         `Bearer ${apiKey.trim()}`,
 
                     "Content-Type":
-                        "application/json",
-
-                    "Accept":
                         "application/json"
                 },
 
@@ -140,24 +157,34 @@ async function callAI(
                         model:
                             MODEL,
 
-                        messages: [
-                            {
-                                role: "system",
-                                content:
-                                    systemPrompt
-                            },
-                            {
-                                role: "user",
-                                content:
-                                    userPrompt
-                            }
-                        ],
+                        messages,
 
                         temperature:
-                            0.1,
+                            options.temperature ?? 0.2,
 
                         max_tokens:
-                            maxTokens
+                            maxTokens,
+
+                        /*
+                         * IMPORTANT
+                         *
+                         * ActionForge does not need
+                         * DeepSeek's reasoning mode.
+                         *
+                         * Disabling it makes replanning
+                         * considerably faster and prevents
+                         * unnecessary token consumption.
+                         */
+                        thinking: {
+                            type: "disabled"
+                        },
+
+                        /*
+                         * Force the model to produce JSON.
+                         */
+                        response_format: {
+                            type: "json_object"
+                        }
 
                     })
             }
@@ -169,7 +196,7 @@ async function callAI(
 
 
     console.log(
-        "B.AI STATUS:",
+        "B.AI status:",
         response.status
     );
 
@@ -198,37 +225,58 @@ async function callAI(
     catch {
 
         console.error(
-            "B.AI RAW RESPONSE:",
+            "NON-JSON B.AI RESPONSE:",
             raw
         );
 
         throw new Error(
-            "B.AI returned invalid API data."
+            "AI service returned an invalid API response."
         );
     }
 
 
     /*
-     * VERY IMPORTANT:
+     * IMPORTANT:
      *
-     * Log the structure, not the API key.
+     * Detect token truncation before trying
+     * to parse the model's content.
      */
 
-    console.log(
-        "B.AI RESPONSE STRUCTURE:",
-        JSON.stringify(
-            {
-                id: data?.id,
-                model: data?.model,
-                finish_reason:
-                    data?.choices?.[0]?.finish_reason,
-                has_choices:
-                    Array.isArray(data?.choices),
-                choice_count:
-                    data?.choices?.length || 0
-            }
-        )
-    );
+    const finishReason =
+        data?.choices?.[0]?.finish_reason;
+
+
+    if (
+        finishReason === "length"
+    ) {
+
+        console.error(
+            "B.AI OUTPUT WAS TRUNCATED."
+        );
+
+        console.error(
+            "Usage:",
+            JSON.stringify(
+                data?.usage || {},
+                null,
+                2
+            )
+        );
+
+        throw new Error(
+            "AI response was too long. Please try again."
+        );
+    }
+
+
+    if (
+        finishReason === "insufficient_system_resource"
+    ) {
+
+        throw new Error(
+            "AI service is temporarily busy. Please try again."
+        );
+    }
 
 
     return data;
@@ -236,71 +284,55 @@ async function callAI(
 
 
 /* =========================================================
-   EXTRACT TEXT
+   EXTRACT MODEL TEXT
    ========================================================= */
 
 function extractText(data) {
 
+    const content =
+        data?.choices?.[0]?.message?.content;
+
+
     /*
-     * -----------------------------------------------------
-     * 1. Standard Chat Completions response
-     * -----------------------------------------------------
+     * Normal string response.
      */
 
-    const message =
-        data?.choices?.[0]?.message;
-
-
     if (
-        typeof message?.content ===
-        "string"
+        typeof content === "string" &&
+        content.trim()
     ) {
 
-        if (
-            message.content.trim()
-        ) {
-
-            return message.content.trim();
-        }
+        return content.trim();
     }
 
 
     /*
-     * -----------------------------------------------------
-     * 2. Content array
-     * -----------------------------------------------------
+     * Some providers may return an array.
      */
 
     if (
-        Array.isArray(
-            message?.content
-        )
+        Array.isArray(content)
     ) {
 
         const parts =
-            message.content
-                .map(item => {
+            content
+                .map(part => {
 
                     if (
-                        typeof item ===
-                        "string"
+                        typeof part === "string"
                     ) {
-                        return item;
+
+                        return part;
                     }
 
-                    if (
-                        typeof item?.text ===
-                        "string"
-                    ) {
-                        return item.text;
-                    }
 
                     if (
-                        typeof item?.content ===
-                        "string"
+                        typeof part?.text === "string"
                     ) {
-                        return item.content;
+
+                        return part.text;
                     }
+
 
                     return "";
 
@@ -309,159 +341,24 @@ function extractText(data) {
 
 
         if (
-            parts.length
+            parts.length > 0
         ) {
 
             return parts
-                .join("")
+                .join("\n")
                 .trim();
         }
     }
 
 
-    /*
-     * -----------------------------------------------------
-     * 3. Direct output_text
-     * -----------------------------------------------------
-     */
-
-    if (
-        typeof data?.output_text ===
-        "string"
-    ) {
-
-        if (
-            data.output_text.trim()
-        ) {
-
-            return data.output_text.trim();
-        }
-    }
-
-
-    /*
-     * -----------------------------------------------------
-     * 4. Output array
-     * -----------------------------------------------------
-     */
-
-    if (
-        Array.isArray(
-            data?.output
-        )
-    ) {
-
-        for (
-            const item
-            of data.output
-        ) {
-
-            if (
-                typeof item?.text ===
-                "string" &&
-                item.text.trim()
-            ) {
-
-                return item.text.trim();
-            }
-
-
-            if (
-                Array.isArray(
-                    item?.content
-                )
-            ) {
-
-                for (
-                    const part
-                    of item.content
-                ) {
-
-                    if (
-                        typeof part ===
-                        "string" &&
-                        part.trim()
-                    ) {
-
-                        return part.trim();
-                    }
-
-
-                    if (
-                        typeof part?.text ===
-                        "string" &&
-                        part.text.trim()
-                    ) {
-
-                        return part.text.trim();
-                    }
-                }
-            }
-        }
-    }
-
-
-    /*
-     * -----------------------------------------------------
-     * 5. Some compatible APIs put text directly
-     * -----------------------------------------------------
-     */
-
-    if (
-        typeof data?.text ===
-        "string"
-    ) {
-
-        if (
-            data.text.trim()
-        ) {
-
-            return data.text.trim();
-        }
-    }
-
-
-    /*
-     * -----------------------------------------------------
-     * NOTHING FOUND
-     * -----------------------------------------------------
-     */
-
     console.error(
-        "========== NO AI TEXT =========="
-    );
-
-    console.error(
+        "FULL B.AI RESPONSE:",
         JSON.stringify(
             data,
             null,
             2
         )
     );
-
-    console.error(
-        "================================"
-    );
-
-
-    /*
-     * Include finish reason in the error.
-     * This is extremely useful if DeepSeek
-     * stopped because of token limits.
-     */
-
-    const finishReason =
-        data?.choices?.[0]?.finish_reason;
-
-
-    if (
-        finishReason
-    ) {
-
-        throw new Error(
-            `AI returned no usable text. Finish reason: ${finishReason}`
-        );
-    }
 
 
     throw new Error(
@@ -482,7 +379,7 @@ function parseJSON(text) {
     ) {
 
         throw new Error(
-            "AI returned an empty response."
+            "AI returned empty JSON."
         );
     }
 
@@ -492,7 +389,7 @@ function parseJSON(text) {
 
 
     /*
-     * Remove code fences.
+     * Remove accidental Markdown fences.
      */
 
     cleaned =
@@ -513,7 +410,7 @@ function parseJSON(text) {
 
 
     /*
-     * Direct parse.
+     * Direct JSON.
      */
 
     try {
@@ -529,11 +426,12 @@ function parseJSON(text) {
 
 
     /*
-     * Extract JSON object.
+     * Try extracting the JSON object.
      */
 
     const start =
         cleaned.indexOf("{");
+
 
     const end =
         cleaned.lastIndexOf("}");
@@ -541,16 +439,21 @@ function parseJSON(text) {
 
     if (
         start !== -1 &&
+        end !== -1 &&
         end > start
     ) {
+
+        const extracted =
+            cleaned.substring(
+                start,
+                end + 1
+            );
+
 
         try {
 
             return JSON.parse(
-                cleaned.substring(
-                    start,
-                    end + 1
-                )
+                extracted
             );
 
         }
@@ -561,11 +464,15 @@ function parseJSON(text) {
 
 
     console.error(
-        "INVALID AI JSON:"
+        "========== RAW AI JSON =========="
     );
 
     console.error(
         cleaned
+    );
+
+    console.error(
+        "================================="
     );
 
 
@@ -600,7 +507,7 @@ export async function generatePlan(
     ) {
 
         throw new Error(
-            "Goal is too long."
+            "Goal is too long. Keep it under 5000 characters."
         );
     }
 
@@ -608,7 +515,8 @@ export async function generatePlan(
     const prompt = `
 Create an ActionForge execution plan.
 
-GOAL:
+USER GOAL:
+
 ${goal.trim()}
 
 Return JSON only.
@@ -617,19 +525,115 @@ Return JSON only.
 
     const data =
         await callAI(
-            SYSTEM_PROMPT,
-            prompt,
-            3500
+            [
+                {
+                    role: "system",
+                    content:
+                        SYSTEM_PROMPT
+                },
+                {
+                    role: "user",
+                    content:
+                        prompt
+                }
+            ],
+            4000
         );
 
 
     const text =
-        extractText(data);
+        extractText(
+            data
+        );
 
 
     return parseJSON(
         text
     );
+}
+
+
+/* =========================================================
+   CREATE COMPACT PLAN
+   ========================================================= */
+
+function createCompactPlan(
+    plan
+) {
+
+    if (
+        !plan ||
+        typeof plan !== "object"
+    ) {
+
+        return {};
+    }
+
+
+    return {
+
+        goal:
+            plan.goal || "",
+
+        summary:
+            plan.summary || "",
+
+        deadline:
+            plan.deadline || "",
+
+        priority:
+            plan.priority || "medium",
+
+        assumptions:
+            Array.isArray(
+                plan.assumptions
+            )
+                ? plan.assumptions
+                    .slice(0, 5)
+                : [],
+
+        tasks:
+            Array.isArray(
+                plan.tasks
+            )
+                ? plan.tasks.map(
+                    task => ({
+                        id:
+                            task.id,
+
+                        title:
+                            task.title,
+
+                        description:
+                            task.description,
+
+                        priority:
+                            task.priority,
+
+                        estimated_minutes:
+                            task.estimated_minutes,
+
+                        dependencies:
+                            Array.isArray(
+                                task.dependencies
+                            )
+                                ? task.dependencies
+                                : []
+                    })
+                )
+                : [],
+
+        critical_path:
+            Array.isArray(
+                plan.critical_path
+            )
+                ? plan.critical_path
+                : [],
+
+        insight:
+            plan.insight || ""
+
+    };
 }
 
 
@@ -665,142 +669,88 @@ export async function replan(
 
 
     /*
-     * Keep the plan compact.
+     * IMPORTANT:
      *
-     * We intentionally do NOT send unnecessary
-     * fields or repeated descriptions.
+     * Do NOT send unnecessary data to the model.
+     *
+     * The previous implementation sent the entire
+     * formatted plan plus a large instruction block.
+     *
+     * This version sends only the fields ActionForge
+     * actually needs.
      */
 
-    const compactPlan = {
-
-        goal:
-            originalPlan.goal || "",
-
-        summary:
-            originalPlan.summary || "",
-
-        deadline:
-            originalPlan.deadline || "",
-
-        priority:
-            originalPlan.priority || "medium",
-
-        tasks:
-            Array.isArray(
-                originalPlan.tasks
-            )
-                ? originalPlan.tasks.map(
-                    task => ({
-
-                        id:
-                            task.id,
-
-                        title:
-                            task.title,
-
-                        description:
-                            task.description,
-
-                        priority:
-                            task.priority,
-
-                        estimated_minutes:
-                            task.estimated_minutes,
-
-                        dependencies:
-                            task.dependencies || []
-
-                    })
-                )
-                : [],
-
-        critical_path:
-            originalPlan.critical_path || [],
-
-        insight:
-            originalPlan.insight || ""
-
-    };
+    const compactPlan =
+        createCompactPlan(
+            originalPlan
+        );
 
 
     const prompt = `
-ADAPT THIS ACTIONFORGE PLAN:
+Adapt this ActionForge plan.
+
+EXISTING PLAN:
 
 ${JSON.stringify(
     compactPlan
 )}
 
-USER'S NEW PROBLEM:
+NEW PROBLEM:
 
 ${problem.trim()}
 
-Make the minimum necessary changes.
-
-Return:
-- the updated plan
-- a short list of changes
+Make the minimum practical changes necessary.
 
 Return JSON only.
+
+Remember:
+- Preserve the original goal.
+- Keep useful tasks.
+- Modify affected tasks.
+- Recalculate dependencies.
+- Recalculate critical_path.
+- Keep descriptions short.
+- Keep the plan concise.
+- Explain the important changes in "changes".
 `;
 
 
-    /*
-     * REPLAN GETS A SMALLER OUTPUT.
-     *
-     * This is deliberate.
-     */
-
     const data =
         await callAI(
-            REPLAN_SYSTEM_PROMPT,
-            prompt,
-            1800
+            [
+                {
+                    role: "system",
+                    content:
+                        REPLAN_SYSTEM_PROMPT
+                },
+                {
+                    role: "user",
+                    content:
+                        prompt
+                }
+            ],
+
+            /*
+             * Enough room for a complete plan,
+             * while avoiding an unnecessarily
+             * huge generation.
+             */
+
+            5000,
+
+            {
+                temperature: 0.1
+            }
         );
 
 
     const text =
-        extractText(data);
-
-
-    const result =
-        parseJSON(text);
-
-
-    /*
-     * Basic validation.
-     */
-
-    if (
-        !result?.updated_plan
-    ) {
-
-        throw new Error(
-            "AI returned no updated plan."
+        extractText(
+            data
         );
-    }
 
 
-    if (
-        !Array.isArray(
-            result.updated_plan.tasks
-        )
-    ) {
-
-        throw new Error(
-            "AI returned an invalid updated plan."
-        );
-    }
-
-
-    if (
-        !Array.isArray(
-            result.changes
-        )
-    ) {
-
-        result.changes = [];
-    }
-
-
-    return result;
+    return parseJSON(
+        text
+    );
 }
