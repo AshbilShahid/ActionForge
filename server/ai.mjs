@@ -18,7 +18,10 @@ const client = new OpenAI({
     baseURL: "https://aihubmix.com/v1"
 });
 
-const MODEL = "gpt-5.5-free";
+const MODELS = [
+    "gpt-4.1-free",
+    "gpt-4o-free"
+];
 
 
 const SYSTEM_PROMPT = `
@@ -86,6 +89,56 @@ Rules:
 - Prioritize actions that directly move the user toward the goal.
 `;
 
+async function callAI(messages) {
+
+    let lastError = null;
+
+    for (const model of MODELS) {
+
+        try {
+
+            console.log(
+                `ActionForge attempting model: ${model}`
+            );
+
+            const response =
+                await client.chat.completions.create({
+
+                    model,
+
+                    messages,
+
+                    response_format: {
+                        type: "json_object"
+                    }
+
+                });
+
+            console.log(
+                `ActionForge successfully used model: ${model}`
+            );
+
+            return response;
+
+        } catch (error) {
+
+            lastError = error;
+
+            console.error(
+                `Model ${model} failed:`,
+                error?.message || error
+            );
+
+        }
+
+    }
+
+    throw new Error(
+        `All AI models failed. Last error: ${
+            lastError?.message || "Unknown error"
+        }`
+    );
+}
 
 export async function generatePlan(goal) {
 
