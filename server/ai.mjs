@@ -1,31 +1,34 @@
-const apiKey = process.env.AIHUBMIX_API_KEY;
+const apiKey = process.env.AI_API_KEY;
 
 if (!apiKey) {
-    throw new Error("AIHUBMIX_API_KEY is missing from Netlify.");
+    throw new Error("AI_API_KEY is missing from Netlify.");
 }
 
-const API_URL = "https://aihubmix.com/v1/responses";
-const MODEL = "gemini-3.7-flash-free";
+const API_URL = "https://api.b.ai/v1/chat/completions";
+const MODEL = "gpt-5.2";
+
 
 const SYSTEM_PROMPT = `
 You are ActionForge, an AI execution-planning assistant.
 
-Turn the user's goal into a practical action plan.
+Turn the user's goal into a practical, realistic action plan.
 
 IMPORTANT:
 - Do NOT browse the web.
 - Do NOT perform web searches.
 - Do NOT use Google Search.
 - Do NOT use external search tools.
-- Use only information supplied by the user.
+- Do NOT use tools.
+- Use ONLY information supplied by the user.
 - If information is missing, make reasonable assumptions.
+- Never invent external facts.
 
 Return ONLY valid JSON.
 Do not use Markdown.
 Do not use code fences.
 Do not add text before or after the JSON.
 
-Use this exact structure:
+For a normal plan, use exactly this structure:
 
 {
   "goal": "string",
@@ -48,20 +51,23 @@ Use this exact structure:
 }
 
 Rules:
-- Every task has a unique ID.
-- IDs are T1, T2, T3, etc.
-- Dependencies reference existing task IDs.
-- critical_path references existing task IDs.
-- estimated_minutes is an integer.
+- Every task must have a unique ID.
+- IDs must be T1, T2, T3, etc.
+- Dependencies must reference existing task IDs.
+- critical_path must reference existing task IDs.
+- estimated_minutes must be an integer.
 - Keep the number of tasks reasonable.
+- Tasks must be concrete and actionable.
+- Prioritize actions that directly move the user toward their goal.
 `;
 
 
 /* =========================================================
-   CALL AIHUBMIX
+   CALL B.AI
    ========================================================= */
 
 async function callAI(userPrompt) {
+
     const response = await fetch(API_URL, {
         method: "POST",
 
@@ -73,7 +79,7 @@ async function callAI(userPrompt) {
         body: JSON.stringify({
             model: MODEL,
 
-            input: [
+            messages: [
                 {
                     role: "system",
                     content: SYSTEM_PROMPT
@@ -84,28 +90,55 @@ async function callAI(userPrompt) {
                 }
             ],
 
-            max_output_tokens: 4000
+            temperature: 0.2,
+            max_tokens: 4000,
+
+            // We intentionally provide NO tools.
+            // Therefore ActionForge does not request
+            // web search or external tool access.
         })
     });
 
+
     const raw = await response.text();
 
-    console.log("AIHubMix status:", response.status);
+    console.log(
+        "B.AI status:",
+        response.status
+    );
+
 
     if (!response.ok) {
-        console.error("AIHubMix error:", raw);
-        throw new Error(`${response.status} ${raw}`);
+
+        console.error(
+            "B.AI error:",
+            raw
+        );
+
+        throw new Error(
+            `${response.status} ${raw}`
+        );
     }
+
 
     let data;
 
     try {
+
         data = JSON.parse(raw);
+
     } catch {
+
+        console.error(
+            "B.AI returned non-JSON:",
+            raw
+        );
+
         throw new Error(
-            "AIHubMix returned a non-JSON API response."
+            "B.AI returned a non-JSON API response."
         );
     }
+
 
     return data;
 }
@@ -117,46 +150,69 @@ async function callAI(userPrompt) {
 
 function extractText(data) {
 
+    /*
+     * OpenAI-compatible Chat Completions response:
+     *
+     * choices[0].message.content
+     */
+
     if (
-        typeof data.output_text === "string" &&
-        data.output_text.trim()
+        data?.choices?.[0]?.message &&
+        typeof data.choices[0].message.content === "string"
     ) {
-        return data.output_text.trim();
+
+        return data.choices[0]
+            .message
+            .content
+            .trim();
     }
 
-    if (Array.isArray(data.output)) {
 
-        for (const item of data.output) {
+    /*
+     * Some providers may return content as
+     * an array of objects.
+     */
 
-            if (!Array.isArray(item.content)) {
-                continue;
-            }
+    if (
+        Array.isArray(
+            data?.choices?.[0]?.message?.content
+        )
+    ) {
 
-            for (const content of item.content) {
+        const parts =
+            data.choices[0]
+                .message
+                .content
+                .map(part => {
 
-                if (
-                    typeof content.text === "string" &&
-                    content.text.trim()
-                ) {
-                    return content.text.trim();
-                }
-            }
+                    if (
+                        typeof part === "string"
+                    ) {
+                        return part;
+                    }
+
+                    if (
+                        typeof part?.text === "string"
+                    ) {
+                        return part.text;
+                    }
+
+                    return "";
+                })
+                .filter(Boolean);
+
+
+        if (parts.length) {
+            return parts.join("\n").trim();
         }
     }
 
-    if (
-        data.choices &&
-        data.choices[0] &&
-        data.choices[0].message &&
-        typeof data.choices[0].message.content === "string"
-    ) {
-        return data.choices[0].message.content.trim();
-    }
 
     console.error(
-        "FULL AI RESPONSE:",
+        "FULL B.AI RESPONSE:",
         JSON.stringify(data, null, 2)
     );
+
 
     throw new Error(
         "AI returned no usable text."
@@ -171,28 +227,55 @@ function extractText(data) {
 function parseJSON(text) {
 
     if (!text) {
-        throw new Error("AI returned an empty response.");
+
+        throw new Error(
+            "AI returned an empty response."
+        );
     }
 
-    let cleaned = String(text).trim();
 
-    // Remove Markdown fences
-    cleaned = cleaned
-        .replace(/^```json\s*/i, "")
-        .replace(/^```\s*/i, "")
-        .replace(/\s*```$/i, "")
-        .trim();
+    let cleaned =
+        String(text).trim();
 
-    // Try direct JSON
+
+    /*
+     * Remove Markdown code fences if the
+     * model ignored the instruction.
+     */
+
+    cleaned =
+        cleaned
+            .replace(/^```json\s*/i, "")
+            .replace(/^```\s*/i, "")
+            .replace(/\s*```$/i, "")
+            .trim();
+
+
+    /*
+     * First attempt:
+     * response is already valid JSON.
+     */
+
     try {
+
         return JSON.parse(cleaned);
+
     } catch {
-        // Continue
+        // Continue.
     }
 
-    // Find JSON object inside surrounding text
-    const start = cleaned.indexOf("{");
-    const end = cleaned.lastIndexOf("}");
+
+    /*
+     * Second attempt:
+     * extract JSON object from surrounding text.
+     */
+
+    const start =
+        cleaned.indexOf("{");
+
+    const end =
+        cleaned.lastIndexOf("}");
+
 
     if (
         start !== -1 &&
@@ -201,24 +284,41 @@ function parseJSON(text) {
     ) {
 
         const extracted =
-            cleaned.substring(start, end + 1);
+            cleaned.substring(
+                start,
+                end + 1
+            );
+
 
         try {
-            return JSON.parse(extracted);
+
+            return JSON.parse(
+                extracted
+            );
+
         } catch {
-            // Continue
+            // Continue.
         }
     }
+
+
+    /*
+     * Keep the raw response visible in
+     * Netlify logs for debugging.
+     */
 
     console.error(
         "========== RAW AI RESPONSE =========="
     );
 
-    console.error(cleaned);
+    console.error(
+        cleaned
+    );
 
     console.error(
         "======================================"
     );
+
 
     throw new Error(
         "RAW_AI_RESPONSE::" + cleaned
@@ -237,14 +337,20 @@ export async function generatePlan(goal) {
         typeof goal !== "string" ||
         !goal.trim()
     ) {
-        throw new Error("Goal cannot be empty.");
+
+        throw new Error(
+            "Goal cannot be empty."
+        );
     }
 
+
     if (goal.length > 5000) {
+
         throw new Error(
             "Goal is too long. Keep it under 5000 characters."
         );
     }
+
 
     const prompt = `
 Create an ActionForge execution plan for this goal:
@@ -252,15 +358,24 @@ Create an ActionForge execution plan for this goal:
 ${goal.trim()}
 
 Remember:
+
 - Do not browse the web.
 - Do not perform web searches.
+- Do not use Google Search.
+- Do not use external tools.
 - Use only the user's information.
+- Make reasonable assumptions when necessary.
 - Return JSON only.
 `;
 
-    const data = await callAI(prompt);
 
-    const text = extractText(data);
+    const data =
+        await callAI(prompt);
+
+
+    const text =
+        extractText(data);
+
 
     return parseJSON(text);
 }
@@ -270,38 +385,54 @@ Remember:
    REPLAN
    ========================================================= */
 
-export async function replan(originalPlan, problem) {
+export async function replan(
+    originalPlan,
+    problem
+) {
 
     if (!originalPlan) {
-        throw new Error("Original plan is required.");
+
+        throw new Error(
+            "Original plan is required."
+        );
     }
+
 
     if (
         !problem ||
         typeof problem !== "string" ||
         !problem.trim()
     ) {
+
         throw new Error(
             "Problem description is required."
         );
     }
+
 
     const prompt = `
 You are adapting an existing ActionForge plan.
 
 EXISTING PLAN:
 
-${JSON.stringify(originalPlan, null, 2)}
+${JSON.stringify(
+    originalPlan,
+    null,
+    2
+)}
+
 
 NEW PROBLEM:
 
 ${problem.trim()}
+
 
 Adapt the existing plan.
 
 Preserve the original goal.
 
 Determine:
+
 1. What changed?
 2. Which tasks should be removed?
 3. Which tasks should be modified?
@@ -310,6 +441,7 @@ Determine:
 6. Is the deadline still realistic?
 7. What is now the critical path?
 8. What should the user focus on immediately?
+
 
 Return ONLY valid JSON.
 
@@ -338,15 +470,25 @@ Use this structure:
   "changes": []
 }
 
-Do NOT browse the web.
-Do NOT perform web searches.
-Do NOT use Google Search.
-Use only the existing plan and the user's new information.
+
+IMPORTANT:
+
+- Do not browse the web.
+- Do not perform web searches.
+- Do not use Google Search.
+- Do not use external tools.
+- Use only the existing plan and the user's new information.
+- Return JSON only.
 `;
 
-    const data = await callAI(prompt);
 
-    const text = extractText(data);
+    const data =
+        await callAI(prompt);
+
+
+    const text =
+        extractText(data);
+
 
     return parseJSON(text);
 }
