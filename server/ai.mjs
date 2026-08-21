@@ -10,10 +10,10 @@ if (!apiKey) {
 
 const client = new OpenAI({
     apiKey: apiKey.trim(),
-    baseURL: "https://aihubmix.com/v1"
+    baseURL: "https://aihubmix.com"
 });
 
-const MODEL = "gpt-5.5";
+const MODEL = "gpt-5.5-free";
 
 
 const SYSTEM_PROMPT = `
