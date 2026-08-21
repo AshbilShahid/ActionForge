@@ -31,7 +31,7 @@ const client = new OpenAI({
     /*
      * AIHubMix OpenAI-compatible endpoint.
      */
-    baseURL: "https://aihubmix.com/v1"
+    baseURL: "https://aihubmix.com"
 
 });
 
