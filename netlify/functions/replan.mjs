@@ -1,7 +1,5 @@
 /* =========================================================
-
-   ACTIONFORGE REPLAN FUNCTION
-   
+   ACTIONFORGE REPLAN NETLIFY FUNCTION
    ========================================================= */
 
 import {
@@ -10,7 +8,7 @@ import {
 
 
 /* =========================================================
-   RESPONSE HELPER
+   JSON RESPONSE
    ========================================================= */
 
 function jsonResponse(
@@ -36,7 +34,7 @@ function jsonResponse(
 
 
 /* =========================================================
-   NETLIFY FUNCTION
+   REPLAN FUNCTION
    ========================================================= */
 
 export default async function handler(
@@ -46,7 +44,7 @@ export default async function handler(
     try {
 
         /*
-         * Only POST is allowed.
+         * Only POST.
          */
 
         if (
@@ -64,7 +62,7 @@ export default async function handler(
 
 
         /*
-         * Read request body.
+         * Parse body.
          */
 
         let body;
@@ -88,9 +86,8 @@ export default async function handler(
         }
 
 
-        const originalPlan =
+        const plan =
             body?.plan;
-
 
         const problem =
             body?.problem;
@@ -101,9 +98,8 @@ export default async function handler(
          */
 
         if (
-            !originalPlan ||
-            typeof originalPlan !==
-            "object"
+            !plan ||
+            typeof plan !== "object"
         ) {
 
             return jsonResponse(
@@ -136,10 +132,6 @@ export default async function handler(
         }
 
 
-        /*
-         * Prevent accidentally huge requests.
-         */
-
         if (
             problem.length > 3000
         ) {
@@ -154,19 +146,30 @@ export default async function handler(
         }
 
 
+        console.log(
+            "ACTIONFORGE REPLAN STARTED"
+        );
+
+
         /*
-         * Ask the AI engine to adapt the plan.
+         * Call AI.
          */
 
         const result =
             await replan(
-                originalPlan,
+                plan,
                 problem.trim()
             );
 
 
+        console.log(
+            "ACTIONFORGE REPLAN SUCCESS"
+        );
+
+
         /*
-         * Return exactly what app.js expects.
+         * Return the exact structure
+         * expected by app.js.
          */
 
         return jsonResponse(
@@ -188,8 +191,15 @@ export default async function handler(
     catch (error) {
 
         console.error(
-            "REPLAN ERROR:",
+            "========== REPLAN ERROR =========="
+        );
+
+        console.error(
             error
+        );
+
+        console.error(
+            "==================================="
         );
 
 
