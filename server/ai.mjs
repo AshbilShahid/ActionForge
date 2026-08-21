@@ -300,54 +300,27 @@ function extractText(data) {
 function parseJSON(text) {
 
     if (!text) {
-
         throw new Error(
             "AI returned an empty response."
         );
-
     }
 
+    let cleaned = String(text).trim();
 
-    let cleaned =
-        text.trim();
-
-
-    /*
-     * Remove Markdown fences if the model
-     * ignored our instruction.
-     */
-
-    cleaned =
-        cleaned
-            .replace(/^```json\s*/i, "")
-            .replace(/^```\s*/i, "")
-            .replace(/\s*```$/i, "")
-            .trim();
-
-
-    /*
-     * Direct JSON.
-     */
+    cleaned = cleaned
+        .replace(/^```json\s*/i, "")
+        .replace(/^```\s*/i, "")
+        .replace(/\s*```$/i, "")
+        .trim();
 
     try {
-
         return JSON.parse(cleaned);
-
-    } catch {
+    } catch (error) {
         // Continue.
     }
 
-
-    /*
-     * Find JSON object inside surrounding text.
-     */
-
-    const start =
-        cleaned.indexOf("{");
-
-    const end =
-        cleaned.lastIndexOf("}");
-
+    const start = cleaned.indexOf("{");
+    const end = cleaned.lastIndexOf("}");
 
     if (
         start !== -1 &&
@@ -356,23 +329,26 @@ function parseJSON(text) {
     ) {
 
         const extracted =
-            cleaned.substring(
-                start,
-                end + 1
-            );
-
+            cleaned.substring(start, end + 1);
 
         try {
-
             return JSON.parse(extracted);
-
-        } catch {
+        } catch (error) {
             // Continue.
         }
-
     }
 
+    /*
+     * TEMPORARY DEBUGGING
+     *
+     * Expose the actual model response.
+     */
 
+    throw new Error(
+        "RAW_AI_RESPONSE::" +
+        cleaned
+    );
+}
     /*
      * Log the exact response so we can
      * diagnose it if something goes wrong.
