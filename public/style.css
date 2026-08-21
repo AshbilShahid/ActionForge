@@ -117,53 +117,24 @@ main {
 }
 
 
-/* =========================================================
-   LOGO
-   ========================================================= */
+.brand-logo {
 
-.brand-mark {
+    width: 42px;
 
-    width: 44px;
+    height: 42px;
 
-    height: 44px;
-
-    display: grid;
-
-    place-items: center;
-
-    border-radius: 12px;
-
-    overflow: hidden;
-
-    background: var(--accent);
-
-    flex-shrink: 0;
-
-    box-shadow:
-        0 5px 22px rgba(184,255,90,0.08);
-}
-
-
-.brand-mark img {
-
-    width: 100%;
-
-    height: 100%;
+    object-fit: contain;
 
     display: block;
 
-    object-fit: cover;
+    border-radius: 10px;
 }
 
 
-/*
-   If your logo has transparent padding and appears too small,
-   change object-fit: cover to contain.
-
-   For transparent logos, this usually works better:
-
-   object-fit: contain;
-*/
+.brand-text {
+    display: flex;
+    flex-direction: column;
+}
 
 
 .brand-name {
@@ -370,7 +341,7 @@ button:disabled {
 
     cursor: wait;
 
-    opacity: 0.6;
+    opacity: 0.65;
 }
 
 
@@ -605,7 +576,7 @@ button:disabled {
 
     gap: 12px;
 
-    margin-bottom: 55px;
+    margin-bottom: 25px;
 }
 
 
@@ -640,6 +611,70 @@ button:disabled {
 .stat-card strong {
 
     font-size: 18px;
+}
+
+
+/* =========================================================
+   PDF ACTION
+   ========================================================= */
+
+.plan-actions {
+
+    display: flex;
+
+    justify-content: flex-end;
+
+    margin-bottom: 42px;
+}
+
+
+.pdf-button {
+
+    display: flex;
+
+    align-items: center;
+
+    gap: 9px;
+
+    padding: 11px 15px;
+
+    border-radius: 10px;
+
+    background: var(--surface-2);
+
+    color: var(--text);
+
+    border: 1px solid var(--border);
+
+    font-size: 12px;
+
+    font-weight: 700;
+
+    transition:
+        transform 0.2s,
+        border-color 0.2s,
+        color 0.2s;
+}
+
+
+.pdf-button:hover {
+
+    transform: translateY(-2px);
+
+    border-color:
+        rgba(184,255,90,0.4);
+
+    color: var(--accent);
+}
+
+
+.pdf-icon {
+
+    color: var(--accent);
+
+    font-size: 18px;
+
+    line-height: 1;
 }
 
 
@@ -851,140 +886,6 @@ button:disabled {
 
 
 /* =========================================================
-   PDF DOWNLOAD
-   ========================================================= */
-
-.pdf-card {
-
-    display: flex;
-
-    align-items: center;
-
-    justify-content: space-between;
-
-    gap: 25px;
-
-    margin-top: 28px;
-
-    padding: 22px;
-
-    border-radius: 16px;
-
-    background: var(--surface);
-
-    border:
-        1px solid
-        rgba(184,255,90,0.14);
-
-}
-
-
-.pdf-content {
-
-    display: flex;
-
-    align-items: center;
-
-    gap: 16px;
-}
-
-
-.pdf-icon {
-
-    width: 42px;
-
-    height: 42px;
-
-    display: grid;
-
-    place-items: center;
-
-    flex-shrink: 0;
-
-    border-radius: 11px;
-
-    background: var(--surface-3);
-
-    color: var(--accent);
-
-    font-size: 21px;
-
-    font-weight: 900;
-}
-
-
-.pdf-label {
-
-    display: block;
-
-    color: var(--accent);
-
-    font-size: 9px;
-
-    font-weight: 800;
-
-    letter-spacing: 0.12em;
-
-    margin-bottom: 5px;
-}
-
-
-.pdf-content h3 {
-
-    font-size: 17px;
-
-    margin-bottom: 4px;
-}
-
-
-.pdf-content p {
-
-    color: var(--muted);
-
-    font-size: 12px;
-
-    line-height: 1.5;
-}
-
-
-.pdf-button {
-
-    display: flex;
-
-    align-items: center;
-
-    gap: 12px;
-
-    flex-shrink: 0;
-
-    padding: 12px 16px;
-
-    border-radius: 10px;
-
-    background: var(--accent);
-
-    color: #08090d;
-
-    font-weight: 800;
-
-    font-size: 12px;
-
-    transition:
-        transform 0.2s,
-        box-shadow 0.2s;
-}
-
-
-.pdf-button:hover {
-
-    transform: translateY(-2px);
-
-    box-shadow:
-        0 8px 25px rgba(184,255,90,0.16);
-}
-
-
-/* =========================================================
    REPLAN
    ========================================================= */
 
@@ -1176,7 +1077,7 @@ button:disabled {
 
     transform: translateX(-50%);
 
-    width: min(600px, 90%);
+    width: min(700px, 90%);
 
     padding: 16px 18px;
 
@@ -1184,7 +1085,7 @@ button:disabled {
 
     gap: 10px;
 
-    align-items: center;
+    align-items: flex-start;
 
     background: #211114;
 
@@ -1199,6 +1100,8 @@ button:disabled {
 
     box-shadow:
         0 15px 50px rgba(0,0,0,0.4);
+
+    z-index: 1000;
 }
 
 
@@ -1238,71 +1141,160 @@ footer {
 @media (max-width: 700px) {
 
     .hero {
-
         margin-top: 80px;
-
     }
 
 
     .hero h1 {
-
         font-size: 42px;
-
     }
 
 
     .goal-footer {
-
         align-items: flex-end;
-
     }
 
 
     .stats-grid {
-
         grid-template-columns: 1fr;
-
     }
 
 
     .plan-top {
-
         flex-direction: column;
-
     }
 
 
     .priority-badge {
-
         align-self: flex-start;
-
     }
 
 
-    .pdf-card {
-
-        flex-direction: column;
-
-        align-items: stretch;
-
-    }
-
-
-    .pdf-button {
-
-        justify-content: center;
-
-        width: 100%;
-
+    .plan-actions {
+        justify-content: flex-start;
     }
 
 
     footer {
-
         flex-direction: column;
-
         gap: 8px;
+    }
 
+
+    .brand-logo {
+        width: 38px;
+        height: 38px;
+    }
+
+}
+
+
+/* =========================================================
+   PRINT / PDF
+   ========================================================= */
+
+@media print {
+
+    body {
+        background: white !important;
+        color: #111 !important;
+    }
+
+
+    .app-shell {
+        width: 100%;
+    }
+
+
+    .topbar {
+        border-bottom: 1px solid #ddd;
+    }
+
+
+    .brand-name {
+        color: #111;
+    }
+
+
+    .brand-tagline,
+    .status,
+    footer {
+        color: #666;
+    }
+
+
+    .hero,
+    .replan-card,
+    .changes-card,
+    .new-plan-button,
+    .plan-actions,
+    .error,
+    .status {
+        display: none !important;
+    }
+
+
+    .plan-section {
+        display: block !important;
+        max-width: 100%;
+        margin: 30px 0;
+        padding: 0;
+    }
+
+
+    .plan-top h2,
+    .section-heading h3 {
+        color: #111;
+    }
+
+
+    .plan-summary,
+    .task-content p,
+    .insight-card p {
+        color: #444;
+    }
+
+
+    .stats-grid {
+        margin-bottom: 30px;
+    }
+
+
+    .stat-card,
+    .task {
+        background: white;
+        border: 1px solid #ddd;
+        break-inside: avoid;
+    }
+
+
+    .task-number {
+        background: #f1f1f1;
+        color: #222;
+    }
+
+
+    .insight-card {
+        background: #f7fbeF;
+        border: 1px solid #dce8c8;
+        break-inside: avoid;
+    }
+
+
+    .insight-icon {
+        background: #222;
+        color: white;
+    }
+
+
+    .eyebrow {
+        color: #4f7d13;
+    }
+
+
+    .priority-badge {
+        background: #eef6df;
+        color: #4f7d13;
     }
 
 }
