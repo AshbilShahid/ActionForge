@@ -6,9 +6,7 @@
   "scripts": {
     "start": "netlify dev"
   },
-  "dependencies": {
-    "openai": "^5.0.0"
-  },
+  "dependencies": {},
   "devDependencies": {
     "netlify-cli": "^23.0.0"
   }
