@@ -1,0 +1,447 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0"
+    >
+
+    <meta
+        name="description"
+        content="ActionForge turns vague goals into executable plans and adapts them when reality changes."
+    >
+
+    <title>ActionForge — Turn intentions into execution</title>
+
+    <link
+        rel="stylesheet"
+        href="/style.css"
+    >
+</head>
+
+
+<body>
+
+<div class="app-shell">
+
+    <!-- ================= HEADER ================= -->
+
+    <header class="topbar">
+
+        <div class="brand">
+
+            <div class="brand-mark">
+                ⚡
+            </div>
+
+            <div>
+
+                <div class="brand-name">
+                    ActionForge
+                </div>
+
+                <div class="brand-tagline">
+                    Turn intentions into execution.
+                </div>
+
+            </div>
+
+        </div>
+
+
+        <div class="status">
+
+            <span class="status-dot"></span>
+
+            AI READY
+
+        </div>
+
+    </header>
+
+
+
+    <!-- ================= MAIN ================= -->
+
+    <main>
+
+        <!-- HERO -->
+
+        <section
+            class="hero"
+            id="hero"
+        >
+
+            <div class="eyebrow">
+                AI EXECUTION PLANNER
+            </div>
+
+
+            <h1>
+                What are you trying
+                <span>to accomplish?</span>
+            </h1>
+
+
+            <p class="hero-description">
+
+                Stop staring at an overwhelming goal.
+
+                ActionForge breaks it into practical steps,
+                prioritizes what matters, and adapts when
+                your plans change.
+
+            </p>
+
+
+            <div class="goal-box">
+
+                <textarea
+                    id="goalInput"
+                    maxlength="5000"
+                    placeholder="Example: I need to launch my portfolio website by Sunday..."
+                ></textarea>
+
+
+                <div class="goal-footer">
+
+                    <span id="charCount">
+                        0 / 5000
+                    </span>
+
+
+                    <button
+                        id="generateBtn"
+                        class="primary-button"
+                    >
+
+                        <span>
+                            Forge My Plan
+                        </span>
+
+                        <span class="button-arrow">
+                            →
+                        </span>
+
+                    </button>
+
+                </div>
+
+            </div>
+
+
+            <div class="examples">
+
+                <span>
+                    Try:
+                </span>
+
+                <button
+                    class="example"
+                    data-goal="I need to prepare for a difficult exam in 10 days while still attending my normal classes."
+                >
+                    Exam preparation
+                </button>
+
+                <button
+                    class="example"
+                    data-goal="I want to launch a portfolio website this weekend, but I have no existing website."
+                >
+                    Launch a website
+                </button>
+
+                <button
+                    class="example"
+                    data-goal="I need to organize a small university event in two weeks with a limited budget."
+                >
+                    Organize an event
+                </button>
+
+            </div>
+
+        </section>
+
+
+
+        <!-- ================= LOADING ================= -->
+
+        <section
+            id="loading"
+            class="loading hidden"
+        >
+
+            <div class="loader-ring"></div>
+
+            <h2>
+                Forging your execution plan...
+            </h2>
+
+            <p>
+                Breaking the goal into actionable steps.
+            </p>
+
+        </section>
+
+
+
+        <!-- ================= PLAN ================= -->
+
+        <section
+            id="planSection"
+            class="plan-section hidden"
+        >
+
+            <!-- PLAN HEADER -->
+
+            <div class="plan-top">
+
+                <div>
+
+                    <div class="eyebrow">
+                        EXECUTION PLAN
+                    </div>
+
+                    <h2 id="goalTitle">
+                        Your goal
+                    </h2>
+
+                    <p
+                        id="summary"
+                        class="plan-summary"
+                    ></p>
+
+                </div>
+
+
+                <div
+                    id="priority"
+                    class="priority-badge"
+                >
+                    HIGH
+                </div>
+
+            </div>
+
+
+
+            <!-- STATS -->
+
+            <div class="stats-grid">
+
+                <div class="stat-card">
+
+                    <span class="stat-label">
+                        DEADLINE
+                    </span>
+
+                    <strong id="deadline">
+                        —
+                    </strong>
+
+                </div>
+
+
+                <div class="stat-card">
+
+                    <span class="stat-label">
+                        TASKS
+                    </span>
+
+                    <strong id="taskCount">
+                        —
+                    </strong>
+
+                </div>
+
+
+                <div class="stat-card">
+
+                    <span class="stat-label">
+                        CRITICAL PATH
+                    </span>
+
+                    <strong id="criticalCount">
+                        —
+                    </strong>
+
+                </div>
+
+            </div>
+
+
+
+            <!-- TASKS -->
+
+            <div class="section-heading">
+
+                <div>
+
+                    <span class="eyebrow">
+                        STEP-BY-STEP
+                    </span>
+
+                    <h3>
+                        Execution Path
+                    </h3>
+
+                </div>
+
+            </div>
+
+
+            <div
+                id="tasks"
+                class="tasks"
+            ></div>
+
+
+
+            <!-- AI INSIGHT -->
+
+            <div class="insight-card">
+
+                <div class="insight-icon">
+                    ✦
+                </div>
+
+                <div>
+
+                    <span class="insight-label">
+                        AI STRATEGIC INSIGHT
+                    </span>
+
+                    <p id="insight"></p>
+
+                </div>
+
+            </div>
+
+
+
+            <!-- REPLAN -->
+
+            <section class="replan-card">
+
+                <div class="replan-header">
+
+                    <div>
+
+                        <span class="eyebrow">
+                            REALITY CHECK
+                        </span>
+
+                        <h3>
+                            Something changed?
+                        </h3>
+
+                        <p>
+                            Plans are useful.
+                            Adaptability is better.
+                        </p>
+
+                    </div>
+
+                    <div class="replan-icon">
+                        ↻
+                    </div>
+
+                </div>
+
+
+                <textarea
+                    id="problemInput"
+                    maxlength="3000"
+                    placeholder="Example: I lost two days because the homepage took much longer than expected..."
+                ></textarea>
+
+
+                <button
+                    id="replanBtn"
+                    class="secondary-button"
+                >
+
+                    Adapt My Plan
+                    <span>↻</span>
+
+                </button>
+
+            </section>
+
+
+
+            <!-- CHANGES -->
+
+            <section
+                id="changesSection"
+                class="changes-card hidden"
+            >
+
+                <span class="eyebrow">
+                    WHAT CHANGED
+                </span>
+
+                <div id="changes"></div>
+
+            </section>
+
+
+
+            <!-- NEW PLAN -->
+
+            <button
+                id="newPlanBtn"
+                class="new-plan-button"
+            >
+
+                ← Start a New Goal
+
+            </button>
+
+        </section>
+
+
+
+        <!-- ================= ERROR ================= -->
+
+        <div
+            id="error"
+            class="error hidden"
+        >
+
+            <strong>
+                Something went wrong.
+            </strong>
+
+            <span id="errorMessage"></span>
+
+        </div>
+
+    </main>
+
+
+
+    <!-- ================= FOOTER ================= -->
+
+    <footer>
+
+        <span>
+            ActionForge
+        </span>
+
+        <span>
+            AI-powered execution planning
+        </span>
+
+    </footer>
+
+</div>
+
+
+<script src="/app.js"></script>
+
+</body>
+
+</html>
