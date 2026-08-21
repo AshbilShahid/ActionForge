@@ -13,46 +13,35 @@ let currentPlan = null;
 const goalInput =
     document.getElementById("goalInput");
 
-
 const problemInput =
     document.getElementById("problemInput");
-
 
 const generateBtn =
     document.getElementById("generateBtn");
 
-
 const replanBtn =
     document.getElementById("replanBtn");
-
 
 const newPlanBtn =
     document.getElementById("newPlanBtn");
 
-
 const downloadPdfBtn =
     document.getElementById("downloadPdfBtn");
-
 
 const loading =
     document.getElementById("loading");
 
-
 const hero =
     document.getElementById("hero");
-
 
 const planSection =
     document.getElementById("planSection");
 
-
 const errorBox =
     document.getElementById("error");
 
-
 const errorMessage =
     document.getElementById("errorMessage");
-
 
 const charCount =
     document.getElementById("charCount");
@@ -95,10 +84,10 @@ function clearError() {
 
 function setButtonLoading(
     button,
-    loading
+    isLoading
 ) {
 
-    if (loading) {
+    if (isLoading) {
 
         button.disabled = true;
 
@@ -394,20 +383,46 @@ generateBtn.addEventListener(
 
         try {
 
-const response = await fetch(
-    "/.netlify/functions/plan",
-    {
-        method: "POST",
+            const response =
+                await fetch(
+                    "/.netlify/functions/plan",
+                    {
 
-        headers: {
-            "Content-Type": "application/json"
-        },
+                        method: "POST",
 
-        body: JSON.stringify({
-            goal: goal
-        })
-    }
-);
+                        headers: {
+                            "Content-Type":
+                                "application/json"
+                        },
+
+                        body:
+                            JSON.stringify({
+                                goal
+                            })
+
+                    }
+                );
+
+
+            const contentType =
+                response.headers.get(
+                    "content-type"
+                ) || "";
+
+
+            if (!contentType.includes(
+                "application/json"
+            )) {
+
+                const raw =
+                    await response.text();
+
+                throw new Error(
+                    `Server returned an unexpected response: ${raw.substring(0, 200)}`
+                );
+
+            }
+
 
             const data =
                 await response.json();
@@ -425,7 +440,6 @@ const response = await fetch(
 
             renderPlan(data);
 
-
         }
         catch (error) {
 
@@ -433,14 +447,17 @@ const response = await fetch(
                 "hidden"
             );
 
+
             showError(
-                error.message
+                error.message ||
+                "Unable to generate plan."
             );
 
         }
         finally {
 
             showLoading(false);
+
 
             setButtonLoading(
                 generateBtn,
@@ -529,6 +546,26 @@ replanBtn.addEventListener(
                 );
 
 
+            const contentType =
+                response.headers.get(
+                    "content-type"
+                ) || "";
+
+
+            if (!contentType.includes(
+                "application/json"
+            )) {
+
+                const raw =
+                    await response.text();
+
+                throw new Error(
+                    `Server returned an unexpected response: ${raw.substring(0, 200)}`
+                );
+
+            }
+
+
             const data =
                 await response.json();
 
@@ -555,18 +592,19 @@ replanBtn.addEventListener(
 
             problemInput.value = "";
 
-
         }
         catch (error) {
 
             showError(
-                error.message
+                error.message ||
+                "Unable to replan."
             );
 
         }
         finally {
 
             showLoading(false);
+
 
             setButtonLoading(
                 replanBtn,
@@ -641,7 +679,505 @@ function renderChanges(changes) {
 
 
 /* =========================================================
-   PDF EXPORT
+   PDF GENERATION
+   ========================================================= */
+
+function downloadPlanAsPDF() {
+
+    if (!currentPlan) {
+
+        showError(
+            "Create a plan before downloading a PDF."
+        );
+
+        return;
+
+    }
+
+
+    if (
+        !window.jspdf ||
+        !window.jspdf.jsPDF
+    ) {
+
+        showError(
+            "PDF generator is unavailable. Please refresh the page and try again."
+        );
+
+        return;
+
+    }
+
+
+    const {
+        jsPDF
+    } = window.jspdf;
+
+
+    const pdf =
+        new jsPDF({
+            unit: "mm",
+            format: "a4"
+        });
+
+
+    const pageWidth =
+        pdf.internal.pageSize.getWidth();
+
+
+    const pageHeight =
+        pdf.internal.pageSize.getHeight();
+
+
+    const margin = 18;
+
+    const contentWidth =
+        pageWidth - margin * 2;
+
+
+    let y = margin;
+
+
+    /* =====================================================
+       HELPERS
+       ===================================================== */
+
+    function ensureSpace(height) {
+
+        if (
+            y + height >
+            pageHeight - margin
+        ) {
+
+            pdf.addPage();
+
+            y = margin;
+
+        }
+
+    }
+
+
+    function addWrappedText(
+        text,
+        x,
+        startY,
+        maxWidth,
+        fontSize = 10,
+        lineHeight = 5
+    ) {
+
+        pdf.setFontSize(fontSize);
+
+
+        const lines =
+            pdf.splitTextToSize(
+                String(text || ""),
+                maxWidth
+            );
+
+
+        pdf.text(
+            lines,
+            x,
+            startY
+        );
+
+
+        return (
+            startY +
+            lines.length * lineHeight
+        );
+
+    }
+
+
+    /* =====================================================
+       HEADER
+       ===================================================== */
+
+    pdf.setFont(
+        "helvetica",
+        "bold"
+    );
+
+
+    pdf.setFontSize(22);
+
+
+    pdf.text(
+        "ActionForge",
+        margin,
+        y
+    );
+
+
+    y += 8;
+
+
+    pdf.setFont(
+        "helvetica",
+        "normal"
+    );
+
+
+    pdf.setFontSize(9);
+
+
+    pdf.text(
+        "AI-powered execution planning",
+        margin,
+        y
+    );
+
+
+    y += 10;
+
+
+    pdf.setDrawColor(
+        210,
+        210,
+        210
+    );
+
+
+    pdf.line(
+        margin,
+        y,
+        pageWidth - margin,
+        y
+    );
+
+
+    y += 10;
+
+
+    /* =====================================================
+       GOAL
+       ===================================================== */
+
+    pdf.setFont(
+        "helvetica",
+        "bold"
+    );
+
+
+    pdf.setFontSize(9);
+
+
+    pdf.text(
+        "EXECUTION PLAN",
+        margin,
+        y
+    );
+
+
+    y += 7;
+
+
+    pdf.setFontSize(18);
+
+
+    y =
+        addWrappedText(
+            currentPlan.goal ||
+            "Untitled goal",
+            margin,
+            y,
+            contentWidth,
+            18,
+            7
+        );
+
+
+    y += 5;
+
+
+    pdf.setFont(
+        "helvetica",
+        "normal"
+    );
+
+
+    pdf.setFontSize(10);
+
+
+    y =
+        addWrappedText(
+            currentPlan.summary ||
+            "",
+            margin,
+            y,
+            contentWidth,
+            10,
+            5
+        );
+
+
+    y += 8;
+
+
+    /* =====================================================
+       PLAN INFORMATION
+       ===================================================== */
+
+    ensureSpace(20);
+
+
+    pdf.setFont(
+        "helvetica",
+        "bold"
+    );
+
+
+    pdf.setFontSize(9);
+
+
+    pdf.text(
+        `PRIORITY: ${(currentPlan.priority || "medium").toUpperCase()}`,
+        margin,
+        y
+    );
+
+
+    pdf.text(
+        `DEADLINE: ${currentPlan.deadline || "Not specified"}`,
+        margin + 60,
+        y
+    );
+
+
+    y += 10;
+
+
+    /* =====================================================
+       TASKS
+       ===================================================== */
+
+    pdf.setFontSize(13);
+
+
+    pdf.text(
+        "Execution Path",
+        margin,
+        y
+    );
+
+
+    y += 8;
+
+
+    const tasks =
+        Array.isArray(currentPlan.tasks)
+            ? currentPlan.tasks
+            : [];
+
+
+    tasks.forEach(
+        (task, index) => {
+
+            const title =
+                `${index + 1}. ${task.title || "Untitled task"}`;
+
+
+            const description =
+                task.description || "";
+
+
+            const estimated =
+                task.estimated_minutes || 0;
+
+
+            ensureSpace(30);
+
+
+            pdf.setFont(
+                "helvetica",
+                "bold"
+            );
+
+
+            pdf.setFontSize(11);
+
+
+            y =
+                addWrappedText(
+                    title,
+                    margin,
+                    y,
+                    contentWidth,
+                    11,
+                    5
+                );
+
+
+            y += 1;
+
+
+            pdf.setFont(
+                "helvetica",
+                "normal"
+            );
+
+
+            pdf.setFontSize(9);
+
+
+            y =
+                addWrappedText(
+                    description,
+                    margin + 5,
+                    y,
+                    contentWidth - 5,
+                    9,
+                    4.5
+                );
+
+
+            y += 2;
+
+
+            pdf.setFontSize(8);
+
+
+            pdf.text(
+                `Priority: ${(task.priority || "medium").toUpperCase()}    Time: ${estimated} minutes`,
+                margin + 5,
+                y
+            );
+
+
+            y += 7;
+
+        }
+    );
+
+
+    /* =====================================================
+       STRATEGIC INSIGHT
+       ===================================================== */
+
+    ensureSpace(35);
+
+
+    pdf.setFont(
+        "helvetica",
+        "bold"
+    );
+
+
+    pdf.setFontSize(13);
+
+
+    pdf.text(
+        "AI Strategic Insight",
+        margin,
+        y
+    );
+
+
+    y += 7;
+
+
+    pdf.setFont(
+        "helvetica",
+        "normal"
+    );
+
+
+    pdf.setFontSize(9);
+
+
+    y =
+        addWrappedText(
+            currentPlan.insight ||
+            "",
+            margin,
+            y,
+            contentWidth,
+            9,
+            4.5
+        );
+
+
+    y += 10;
+
+
+    /* =====================================================
+       FOOTER
+       ===================================================== */
+
+    const totalPages =
+        pdf.internal.getNumberOfPages();
+
+
+    for (
+        let page = 1;
+        page <= totalPages;
+        page++
+    ) {
+
+        pdf.setPage(page);
+
+
+        pdf.setFont(
+            "helvetica",
+            "normal"
+        );
+
+
+        pdf.setFontSize(8);
+
+
+        pdf.setTextColor(
+            120,
+            120,
+            120
+        );
+
+
+        pdf.text(
+            `ActionForge • Page ${page} of ${totalPages}`,
+            margin,
+            pageHeight - 10
+        );
+
+    }
+
+
+    /* =====================================================
+       DOWNLOAD
+       ===================================================== */
+
+    const safeName =
+        String(
+            currentPlan.goal ||
+            "execution-plan"
+        )
+            .toLowerCase()
+            .replace(
+                /[^a-z0-9]+/g,
+                "-"
+            )
+            .replace(
+                /^-+|-+$/g,
+                ""
+            )
+            .substring(
+                0,
+                60
+            );
+
+
+    pdf.save(
+        `actionforge-${safeName || "execution-plan"}.pdf`
+    );
+
+}
+
+
+/* =========================================================
+   PDF BUTTON
    ========================================================= */
 
 downloadPdfBtn.addEventListener(
@@ -650,19 +1186,7 @@ downloadPdfBtn.addEventListener(
 
         clearError();
 
-
-        if (!currentPlan) {
-
-            showError(
-                "Create a plan before downloading it."
-            );
-
-            return;
-
-        }
-
-
-        window.print();
+        downloadPlanAsPDF();
 
     }
 );
@@ -680,7 +1204,6 @@ newPlanBtn.addEventListener(
 
 
         goalInput.value = "";
-
 
         problemInput.value = "";
 
@@ -721,7 +1244,8 @@ goalInput.addEventListener(
 
         if (
             event.key === "Enter" &&
-            (event.ctrlKey || event.metaKey)
+            (event.ctrlKey ||
+             event.metaKey)
         ) {
 
             generateBtn.click();
