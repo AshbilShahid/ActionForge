@@ -1,12 +1,23 @@
+/* =========================================================
+   ACTIONFORGE AI ENGINE
+   ========================================================= */
+
 const apiKey = process.env.AI_API_KEY;
 
 if (!apiKey) {
     throw new Error("AI_API_KEY is missing from Netlify.");
 }
 
-const API_URL = "https://api.b.ai/v1/chat/completions";
-const MODEL = "deepseek-v4-flash";
+const API_URL =
+    "https://api.b.ai/v1/chat/completions";
 
+const MODEL =
+    "deepseek-v4-flash";
+
+
+/* =========================================================
+   SYSTEM PROMPT
+   ========================================================= */
 
 const SYSTEM_PROMPT = `
 You are ActionForge, an AI execution-planning assistant.
@@ -29,7 +40,7 @@ Do not use Markdown.
 Do not use code fences.
 Do not add text before or after the JSON.
 
-For a normal plan, use exactly this structure:
+Use exactly this structure:
 
 {
   "goal": "string",
@@ -65,45 +76,125 @@ Rules:
 
 
 /* =========================================================
+   REPLAN SYSTEM PROMPT
+   ========================================================= */
+
+const REPLAN_SYSTEM_PROMPT = `
+You are ActionForge, an AI execution-planning assistant.
+
+Your job is to adapt an existing execution plan when the
+user's situation changes.
+
+IMPORTANT:
+- Do NOT browse the web.
+- Do NOT perform web searches.
+- Do NOT use Google Search.
+- Do NOT use external search tools.
+- Do NOT use tools.
+- Use ONLY the existing plan and the user's new information.
+- Preserve the original goal.
+- Keep useful existing tasks.
+- Change only what is necessary.
+- Keep the result practical and actionable.
+
+Return ONLY valid JSON.
+Do not use Markdown.
+Do not use code fences.
+Do not add text before or after the JSON.
+
+Return exactly this structure:
+
+{
+  "updated_plan": {
+    "goal": "string",
+    "summary": "string",
+    "deadline": "string",
+    "priority": "low | medium | high | critical",
+    "assumptions": [],
+    "tasks": [
+      {
+        "id": "T1",
+        "title": "string",
+        "description": "string",
+        "priority": "low | medium | high | critical",
+        "estimated_minutes": 60,
+        "dependencies": []
+      }
+    ],
+    "critical_path": [],
+    "insight": "string"
+  },
+  "changes": []
+}
+
+Rules:
+- Every task must have a unique ID.
+- IDs must be T1, T2, T3, etc.
+- Dependencies must reference existing task IDs.
+- critical_path must reference existing task IDs.
+- estimated_minutes must be an integer.
+- Keep the number of tasks reasonable.
+- Keep the original goal.
+- Make only necessary changes.
+`;
+
+
+/* =========================================================
    CALL B.AI
    ========================================================= */
 
-async function callAI(userPrompt) {
+async function callAI(
+    userPrompt,
+    maxTokens = 4000
+) {
 
-    const response = await fetch(API_URL, {
-        method: "POST",
+    const response =
+        await fetch(
+            API_URL,
+            {
+                method: "POST",
 
-        headers: {
-            "Authorization": `Bearer ${apiKey.trim()}`,
-            "Content-Type": "application/json"
-        },
+                headers: {
+                    "Authorization":
+                        `Bearer ${apiKey.trim()}`,
 
-        body: JSON.stringify({
-            model: MODEL,
-
-            messages: [
-                {
-                    role: "system",
-                    content: SYSTEM_PROMPT
+                    "Content-Type":
+                        "application/json"
                 },
-                {
-                    role: "user",
-                    content: userPrompt
-                }
-            ],
 
-            temperature: 0.2,
-            max_tokens: 4000
+                body:
+                    JSON.stringify({
 
-            // IMPORTANT:
-            // No tools are supplied.
-            // ActionForge therefore does not request
-            // web search or external tools.
-        })
-    });
+                        model:
+                            MODEL,
+
+                        messages: [
+                            {
+                                role: "system",
+                                content:
+                                    SYSTEM_PROMPT
+                            },
+                            {
+                                role: "user",
+                                content:
+                                    userPrompt
+                            }
+                        ],
+
+                        temperature:
+                            0.2,
+
+                        max_tokens:
+                            maxTokens
+
+                    })
+            }
+        );
 
 
-    const raw = await response.text();
+    const raw =
+        await response.text();
+
 
     console.log(
         "B.AI status:",
@@ -114,7 +205,7 @@ async function callAI(userPrompt) {
     if (!response.ok) {
 
         console.error(
-            "B.AI error:",
+            "B.AI ERROR:",
             raw
         );
 
@@ -126,11 +217,14 @@ async function callAI(userPrompt) {
 
     let data;
 
+
     try {
 
-        data = JSON.parse(raw);
+        data =
+            JSON.parse(raw);
 
-    } catch {
+    }
+    catch {
 
         console.error(
             "B.AI returned non-JSON:",
@@ -154,27 +248,34 @@ async function callAI(userPrompt) {
 function extractText(data) {
 
     /*
-     * Standard OpenAI-compatible response:
-     *
-     * choices[0].message.content
-     */
+    Standard OpenAI-compatible response.
+    */
 
     if (
         typeof data?.choices?.[0]?.message?.content ===
         "string"
     ) {
 
-        return data.choices[0]
-            .message
-            .content
-            .trim();
+        const text =
+            data.choices[0]
+                .message
+                .content
+                .trim();
+
+
+        if (text) {
+
+            return text;
+
+        }
+
     }
 
 
     /*
-     * Some providers may return content
-     * as an array.
-     */
+    Some providers may return content
+    as an array.
+    */
 
     if (
         Array.isArray(
@@ -191,26 +292,113 @@ function extractText(data) {
                     if (
                         typeof part === "string"
                     ) {
+
                         return part;
+
                     }
 
                     if (
                         typeof part?.text === "string"
                     ) {
+
                         return part.text;
+
                     }
 
                     return "";
+
                 })
                 .filter(Boolean);
 
 
-        if (parts.length > 0) {
+        if (
+            parts.length > 0
+        ) {
 
-            return parts
-                .join("\n")
-                .trim();
+            const text =
+                parts
+                    .join("\n")
+                    .trim();
+
+
+            if (text) {
+
+                return text;
+
+            }
+
         }
+
+    }
+
+
+    /*
+    Alternative response format.
+    */
+
+    if (
+        typeof data?.output_text ===
+        "string"
+    ) {
+
+        const text =
+            data.output_text.trim();
+
+
+        if (text) {
+
+            return text;
+
+        }
+
+    }
+
+
+    /*
+    Alternative output array format.
+    */
+
+    if (
+        Array.isArray(
+            data?.output
+        )
+    ) {
+
+        for (
+            const item
+            of data.output
+        ) {
+
+            if (
+                !Array.isArray(
+                    item?.content
+                )
+            ) {
+
+                continue;
+
+            }
+
+
+            for (
+                const content
+                of item.content
+            ) {
+
+                if (
+                    typeof content?.text ===
+                    "string" &&
+                    content.text.trim()
+                ) {
+
+                    return content.text.trim();
+
+                }
+
+            }
+
+        }
+
     }
 
 
@@ -236,11 +424,15 @@ function extractText(data) {
 
 function parseJSON(text) {
 
-    if (!text) {
+    if (
+        !text ||
+        typeof text !== "string"
+    ) {
 
         throw new Error(
             "AI returned an empty response."
         );
+
     }
 
 
@@ -249,8 +441,8 @@ function parseJSON(text) {
 
 
     /*
-     * Remove Markdown fences.
-     */
+    Remove Markdown code fences.
+    */
 
     cleaned =
         cleaned
@@ -270,24 +462,30 @@ function parseJSON(text) {
 
 
     /*
-     * Try direct JSON.
-     */
+    First attempt:
+    parse the entire response.
+    */
 
     try {
 
-        return JSON.parse(cleaned);
+        return JSON.parse(
+            cleaned
+        );
 
-    } catch {
+    }
+    catch {
         // Continue.
     }
 
 
     /*
-     * Try extracting JSON from surrounding text.
-     */
+    Second attempt:
+    extract the JSON object.
+    */
 
     const start =
         cleaned.indexOf("{");
+
 
     const end =
         cleaned.lastIndexOf("}");
@@ -312,15 +510,13 @@ function parseJSON(text) {
                 extracted
             );
 
-        } catch {
+        }
+        catch {
             // Continue.
         }
+
     }
 
-
-    /*
-     * Debugging information.
-     */
 
     console.error(
         "========== RAW AI RESPONSE =========="
@@ -336,8 +532,7 @@ function parseJSON(text) {
 
 
     throw new Error(
-        "RAW_AI_RESPONSE::" +
-        cleaned
+        "AI returned invalid JSON."
     );
 }
 
@@ -346,7 +541,9 @@ function parseJSON(text) {
    GENERATE PLAN
    ========================================================= */
 
-export async function generatePlan(goal) {
+export async function generatePlan(
+    goal
+) {
 
     if (
         !goal ||
@@ -357,14 +554,18 @@ export async function generatePlan(goal) {
         throw new Error(
             "Goal cannot be empty."
         );
+
     }
 
 
-    if (goal.length > 5000) {
+    if (
+        goal.length > 5000
+    ) {
 
         throw new Error(
             "Goal is too long. Keep it under 5000 characters."
         );
+
     }
 
 
@@ -386,14 +587,19 @@ Remember:
 
 
     const data =
-        await callAI(prompt);
+        await callAI(
+            prompt,
+            4000
+        );
 
 
     const text =
         extractText(data);
 
 
-    return parseJSON(text);
+    return parseJSON(
+        text
+    );
 }
 
 
@@ -411,6 +617,7 @@ export async function replan(
         throw new Error(
             "Original plan is required."
         );
+
     }
 
 
@@ -423,45 +630,56 @@ export async function replan(
         throw new Error(
             "Problem description is required."
         );
+
     }
 
 
+    /*
+    =========================================================
+    COMPACT EXISTING PLAN
+    =========================================================
+
+    Avoid pretty-printing the JSON. This reduces the amount
+    of input sent to the AI and makes adaptation faster.
+    */
+
+    const existingPlan =
+        JSON.stringify(
+            originalPlan
+        );
+
+
+    /*
+    =========================================================
+    COMPACT REPLAN PROMPT
+    =========================================================
+    */
+
     const prompt = `
-You are adapting an existing ActionForge plan.
+Adapt this ActionForge plan.
 
 EXISTING PLAN:
+${existingPlan}
 
-${JSON.stringify(
-    originalPlan,
-    null,
-    2
-)}
-
-
-NEW PROBLEM:
-
+NEW SITUATION:
 ${problem.trim()}
 
+Requirements:
 
-Adapt the existing plan.
+- Preserve the original goal.
+- Keep useful existing tasks.
+- Modify, remove, add, or reorder tasks only when necessary.
+- Update dependencies when necessary.
+- Update the critical path.
+- Keep the deadline realistic.
+- Keep the plan practical.
+- Explain important modifications in "changes".
+- Return ONLY valid JSON.
+- No Markdown.
+- No code fences.
+- No explanation outside JSON.
 
-Preserve the original goal.
-
-Determine:
-
-1. What changed?
-2. Which tasks should be removed?
-3. Which tasks should be modified?
-4. Which tasks should be reordered?
-5. Which dependencies changed?
-6. Is the deadline still realistic?
-7. What is now the critical path?
-8. What should the user focus on immediately?
-
-
-Return ONLY valid JSON.
-
-Use this structure:
+Return exactly:
 
 {
   "updated_plan": {
@@ -485,25 +703,25 @@ Use this structure:
   },
   "changes": []
 }
-
-IMPORTANT:
-
-- Do not browse the web.
-- Do not perform web searches.
-- Do not use Google Search.
-- Do not use external tools.
-- Use only the existing plan and the user's new information.
-- Return JSON only.
 `;
 
 
+    /*
+    Use a smaller output limit for adaptation.
+    */
+
     const data =
-        await callAI(prompt);
+        await callAI(
+            prompt,
+            2500
+        );
 
 
     const text =
         extractText(data);
 
 
-    return parseJSON(text);
+    return parseJSON(
+        text
+    );
 }
