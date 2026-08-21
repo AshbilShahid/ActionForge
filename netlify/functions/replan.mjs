@@ -1,113 +1,235 @@
-import { replan } from "../../server/ai.mjs";
+import {
+    replan
+} from "../../server/ai.mjs";
 
-export default async (request) => {
 
-  try {
+export default async function handler(
+    request
+) {
 
-    if (request.method !== "POST") {
+    try {
 
-      return new Response(
-        JSON.stringify({
-          error: "Method not allowed."
-        }),
-        {
-          status: 405,
-          headers: {
-            "Content-Type": "application/json"
-          }
+        /* =================================================
+           METHOD
+           ================================================= */
+
+        if (
+            request.method !== "POST"
+        ) {
+
+            return new Response(
+
+                JSON.stringify({
+                    error:
+                        "Method not allowed."
+                }),
+
+                {
+                    status: 405,
+
+                    headers: {
+                        "Content-Type":
+                            "application/json"
+                    }
+
+                }
+
+            );
+
         }
-      );
+
+
+        /* =================================================
+           BODY
+           ================================================= */
+
+        let body;
+
+
+        try {
+
+            body =
+                await request.json();
+
+        }
+        catch {
+
+            return new Response(
+
+                JSON.stringify({
+                    error:
+                        "Invalid JSON request."
+                }),
+
+                {
+                    status: 400,
+
+                    headers: {
+                        "Content-Type":
+                            "application/json"
+                    }
+
+                }
+
+            );
+
+        }
+
+
+        const plan =
+            body?.plan;
+
+
+        const problem =
+            body?.problem;
+
+
+        /* =================================================
+           VALIDATION
+           ================================================= */
+
+        if (!plan) {
+
+            return new Response(
+
+                JSON.stringify({
+                    error:
+                        "Original plan is required."
+                }),
+
+                {
+                    status: 400,
+
+                    headers: {
+                        "Content-Type":
+                            "application/json"
+                    }
+
+                }
+
+            );
+
+        }
+
+
+        if (
+            !problem ||
+            typeof problem !== "string" ||
+            !problem.trim()
+        ) {
+
+            return new Response(
+
+                JSON.stringify({
+                    error:
+                        "Problem description is required."
+                }),
+
+                {
+                    status: 400,
+
+                    headers: {
+                        "Content-Type":
+                            "application/json"
+                    }
+
+                }
+
+            );
+
+        }
+
+
+        if (
+            problem.length > 3000
+        ) {
+
+            return new Response(
+
+                JSON.stringify({
+                    error:
+                        "Problem description is too long."
+                }),
+
+                {
+                    status: 400,
+
+                    headers: {
+                        "Content-Type":
+                            "application/json"
+                    }
+
+                }
+
+            );
+
+        }
+
+
+        /* =================================================
+           AI
+           ================================================= */
+
+        const updated =
+            await replan(
+                plan,
+                problem
+            );
+
+
+        /* =================================================
+           RESPONSE
+           ================================================= */
+
+        return new Response(
+
+            JSON.stringify(
+                updated
+            ),
+
+            {
+                status: 200,
+
+                headers: {
+                    "Content-Type":
+                        "application/json"
+                }
+
+            }
+
+        );
+
+    }
+    catch (error) {
+
+        console.error(
+            "REPLAN ERROR:",
+            error
+        );
+
+
+        return new Response(
+
+            JSON.stringify({
+
+                error:
+                    error?.message ||
+                    "Unable to adapt the plan."
+
+            }),
+
+            {
+                status: 500,
+
+                headers: {
+                    "Content-Type":
+                        "application/json"
+                }
+
+            }
+
+        );
 
     }
 
-    const body = await request.json();
-
-    const plan = body?.plan;
-    const problem = body?.problem;
-
-    if (!plan) {
-
-      return new Response(
-        JSON.stringify({
-          error: "Existing plan is required."
-        }),
-        {
-          status: 400,
-          headers: {
-            "Content-Type": "application/json"
-          }
-        }
-      );
-
-    }
-
-    if (
-      !problem ||
-      typeof problem !== "string"
-    ) {
-
-      return new Response(
-        JSON.stringify({
-          error: "A valid problem description is required."
-        }),
-        {
-          status: 400,
-          headers: {
-            "Content-Type": "application/json"
-          }
-        }
-      );
-
-    }
-
-    if (problem.length > 3000) {
-
-      return new Response(
-        JSON.stringify({
-          error: "Problem description is too long."
-        }),
-        {
-          status: 400,
-          headers: {
-            "Content-Type": "application/json"
-          }
-        }
-      );
-
-    }
-
-    const result =
-      await replan(
-        plan,
-        problem
-      );
-
-    return new Response(
-      JSON.stringify(result),
-      {
-        status: 200,
-        headers: {
-          "Content-Type": "application/json"
-        }
-      }
-    );
-
-  } catch (error) {
-
-    console.error(error);
-
-    return new Response(
-      JSON.stringify({
-        error: "Unable to replan."
-      }),
-      {
-        status: 500,
-        headers: {
-          "Content-Type": "application/json"
-        }
-      }
-    );
-
-  }
-
-};
+}
