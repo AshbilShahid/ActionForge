@@ -394,26 +394,20 @@ generateBtn.addEventListener(
 
         try {
 
-            const response =
-                await fetch(
-                    "/.netlify/functions/plan",
-                    {
+const response = await fetch(
+    "/.netlify/functions/plan",
+    {
+        method: "POST",
 
-                        method: "POST",
+        headers: {
+            "Content-Type": "application/json"
+        },
 
-                        headers: {
-                            "Content-Type":
-                                "application/json"
-                        },
-
-                        body:
-                            JSON.stringify({
-                                goal
-                            })
-
-                    }
-                );
-
+        body: JSON.stringify({
+            goal: goal
+        })
+    }
+);
 
             const data =
                 await response.json();
