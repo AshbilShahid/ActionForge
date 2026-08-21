@@ -68,14 +68,24 @@ export default async (request) => {
       }
     );
 
-  } catch (error) {
+} catch (error) {
 
-    console.error(error);
+    console.error("PLAN ERROR:", error);
 
     return new Response(
-      JSON.stringify({
-        error: "Unable to generate plan."
-      }),
+        JSON.stringify({
+            error: error?.message || "Unable to generate plan.",
+            details: error?.status || null
+        }),
+        {
+            status: 500,
+            headers: {
+                "Content-Type": "application/json"
+            }
+        }
+    );
+
+}
       {
         status: 500,
         headers: {
