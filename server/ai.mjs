@@ -28,9 +28,7 @@ const MODEL =
 AI REQUEST TIMEOUT
 =============================================================
 
-Keep this below the normal Netlify function timeout so that
-our application can return a clean error instead of allowing
-the upstream connection to hang indefinitely.
+Keep this below the normal Netlify function timeout.
 */
 
 const AI_TIMEOUT_MS =
@@ -44,7 +42,7 @@ const AI_TIMEOUT_MS =
 const SYSTEM_PROMPT = `
 You are ActionForge, an AI execution-planning assistant.
 
-Your job is to turn a user's goal into a practical execution plan.
+Turn the user's goal into a practical execution plan.
 
 IMPORTANT:
 - Do NOT browse the web.
@@ -55,11 +53,11 @@ IMPORTANT:
 - Make reasonable assumptions when information is missing.
 
 Return ONLY valid JSON.
-Do not use Markdown.
-Do not use code fences.
-Do not add text before or after the JSON.
+No Markdown.
+No code fences.
+No text before or after the JSON.
 
-Use this structure:
+Use exactly this structure:
 
 {
   "goal": "string",
@@ -86,8 +84,10 @@ Rules:
 - IDs are T1, T2, T3, etc.
 - Dependencies reference existing task IDs.
 - critical_path references existing task IDs.
-- estimated_minutes is an integer.
-- Keep the number of tasks reasonable.
+- estimated_minutes must be an integer.
+- Use 5 to 8 tasks normally.
+- Keep descriptions concise.
+- Keep the entire response compact.
 `;
 
 
@@ -108,12 +108,13 @@ IMPORTANT:
 - Use only the existing plan and the user's new information.
 - Preserve the original goal.
 - Keep the plan practical.
-- Keep the number of tasks reasonable.
+- Keep descriptions concise.
+- Keep the response compact.
 
 Return ONLY valid JSON.
-Do not use Markdown.
-Do not use code fences.
-Do not add text before or after the JSON.
+No Markdown.
+No code fences.
+No text before or after the JSON.
 
 Return exactly:
 
@@ -139,6 +140,11 @@ Return exactly:
   },
   "changes": []
 }
+
+Rules:
+- Use 5 to 8 tasks normally.
+- Keep descriptions concise.
+- Keep the entire response compact.
 `;
 
 
@@ -148,7 +154,7 @@ Return exactly:
 
 async function callAI(
     messages,
-    maxTokens = 3000
+    maxTokens = 2800
 ) {
 
     const controller =
@@ -195,7 +201,7 @@ async function callAI(
                             messages,
 
                             temperature:
-                                0.2,
+                                0.15,
 
                             max_tokens:
                                 maxTokens
@@ -397,27 +403,15 @@ function extractText(
 
 
 /* =========================================================
-   PARSE JSON
+   CLEAN AI TEXT
    ========================================================= */
 
-function parseJSON(
+function cleanAIText(
     text
 ) {
 
-    if (
-        !text ||
-        typeof text !== "string"
-    ) {
-
-        throw new Error(
-            "AI returned an empty response."
-        );
-
-    }
-
-
     let cleaned =
-        text.trim();
+        String(text || "").trim();
 
 
     cleaned =
@@ -437,7 +431,38 @@ function parseJSON(
             .trim();
 
 
-    /* Direct JSON */
+    return cleaned;
+
+}
+
+
+/* =========================================================
+   PARSE JSON
+   ========================================================= */
+
+function parseJSON(
+    text
+) {
+
+    if (
+        !text ||
+        typeof text !== "string"
+    ) {
+
+        throw new Error(
+            "AI returned an empty response."
+        );
+
+    }
+
+
+    const cleaned =
+        cleanAIText(text);
+
+
+    /* -----------------------------------------------------
+       Attempt 1: direct JSON
+       ----------------------------------------------------- */
 
     try {
 
@@ -451,7 +476,9 @@ function parseJSON(
     }
 
 
-    /* Extract JSON object */
+    /* -----------------------------------------------------
+       Attempt 2: JSON object embedded in text
+       ----------------------------------------------------- */
 
     const start =
         cleaned.indexOf(
@@ -506,6 +533,299 @@ function parseJSON(
 
 
 /* =========================================================
+   VALIDATE PLAN
+   ========================================================= */
+
+function validatePlan(
+    plan
+) {
+
+    if (
+        !plan ||
+        typeof plan !== "object"
+    ) {
+
+        return false;
+
+    }
+
+
+    if (
+        typeof plan.goal !== "string"
+    ) {
+
+        return false;
+
+    }
+
+
+    if (
+        !Array.isArray(plan.tasks)
+    ) {
+
+        return false;
+
+    }
+
+
+    return true;
+
+}
+
+
+/* =========================================================
+   VALIDATE REPLAN
+   ========================================================= */
+
+function validateReplan(
+    result
+) {
+
+    if (
+        !result ||
+        typeof result !== "object"
+    ) {
+
+        return false;
+
+    }
+
+
+    if (
+        !validatePlan(
+            result.updated_plan
+        )
+    ) {
+
+        return false;
+
+    }
+
+
+    if (
+        !Array.isArray(
+            result.changes
+        )
+    ) {
+
+        return false;
+
+    }
+
+
+    return true;
+
+}
+
+
+/* =========================================================
+   GENERATE PLAN RECOVERY
+   ========================================================= */
+
+async function recoverPlanJSON(
+    originalText
+) {
+
+    console.warn(
+        "Initial AI response was not valid JSON. Attempting compact recovery."
+    );
+
+
+    const recoveryPrompt = `
+The previous AI response was incomplete or invalid JSON.
+
+Reconstruct the ActionForge plan below as VALID JSON.
+
+PREVIOUS RESPONSE:
+
+${String(originalText).slice(0, 12000)}
+
+IMPORTANT:
+- Return ONLY JSON.
+- Do not use Markdown.
+- Do not explain anything.
+- Use exactly 5 tasks if possible.
+- Keep every task description under 20 words.
+- Keep summary and insight concise.
+- Do not add unnecessary fields.
+
+Return exactly:
+
+{
+  "goal": "string",
+  "summary": "string",
+  "deadline": "string",
+  "priority": "low | medium | high | critical",
+  "assumptions": [],
+  "tasks": [
+    {
+      "id": "T1",
+      "title": "string",
+      "description": "string",
+      "priority": "low | medium | high | critical",
+      "estimated_minutes": 60,
+      "dependencies": []
+    }
+  ],
+  "critical_path": [],
+  "insight": "string"
+}
+`;
+
+
+    const data =
+        await callAI(
+            [
+                {
+                    role: "system",
+                    content:
+                        SYSTEM_PROMPT
+                },
+                {
+                    role: "user",
+                    content:
+                        recoveryPrompt
+                }
+            ],
+            2200
+        );
+
+
+    const text =
+        extractText(data);
+
+
+    const plan =
+        parseJSON(text);
+
+
+    if (
+        !validatePlan(plan)
+    ) {
+
+        throw new Error(
+            "AI returned an invalid execution plan."
+        );
+
+    }
+
+
+    return plan;
+
+}
+
+
+/* =========================================================
+   REPLAN RECOVERY
+   ========================================================= */
+
+async function recoverReplanJSON(
+    originalText,
+    originalPlan,
+    problem
+) {
+
+    console.warn(
+        "Initial replan response was not valid JSON. Attempting compact recovery."
+    );
+
+
+    const recoveryPrompt = `
+The previous response was incomplete or invalid JSON.
+
+Rebuild the updated ActionForge plan as valid JSON.
+
+ORIGINAL PLAN:
+
+${JSON.stringify(originalPlan)}
+
+NEW PROBLEM:
+
+${problem}
+
+PREVIOUS RESPONSE:
+
+${String(originalText).slice(0, 12000)}
+
+IMPORTANT:
+- Return ONLY JSON.
+- Do not use Markdown.
+- Preserve the original goal.
+- Use 5 tasks if possible.
+- Keep descriptions under 20 words.
+- Keep changes concise.
+- No unnecessary fields.
+
+Return exactly:
+
+{
+  "updated_plan": {
+    "goal": "string",
+    "summary": "string",
+    "deadline": "string",
+    "priority": "low | medium | high | critical",
+    "assumptions": [],
+    "tasks": [
+      {
+        "id": "T1",
+        "title": "string",
+        "description": "string",
+        "priority": "low | medium | high | critical",
+        "estimated_minutes": 60,
+        "dependencies": []
+      }
+    ],
+    "critical_path": [],
+    "insight": "string"
+  },
+  "changes": []
+}
+`;
+
+
+    const data =
+        await callAI(
+            [
+                {
+                    role: "system",
+                    content:
+                        REPLAN_SYSTEM_PROMPT
+                },
+                {
+                    role: "user",
+                    content:
+                        recoveryPrompt
+                }
+            ],
+            2200
+        );
+
+
+    const text =
+        extractText(data);
+
+
+    const result =
+        parseJSON(text);
+
+
+    if (
+        !validateReplan(result)
+    ) {
+
+        throw new Error(
+            "AI returned an invalid updated plan."
+        );
+
+    }
+
+
+    return result;
+
+}
+
+
+/* =========================================================
    GENERATE PLAN
    ========================================================= */
 
@@ -541,7 +861,11 @@ Create an ActionForge execution plan for this goal:
 
 ${goal.trim()}
 
-Return JSON only.
+Requirements:
+- Use 5 to 8 tasks.
+- Keep descriptions concise.
+- Prioritize the highest-impact actions.
+- Return JSON only.
 `;
 
 
@@ -559,7 +883,7 @@ Return JSON only.
                         userPrompt
                 }
             ],
-            3500
+            2800
         );
 
 
@@ -567,9 +891,38 @@ Return JSON only.
         extractText(data);
 
 
-    return parseJSON(
-        text
-    );
+    try {
+
+        const plan =
+            parseJSON(text);
+
+
+        if (
+            !validatePlan(plan)
+        ) {
+
+            throw new Error(
+                "Invalid plan structure."
+            );
+
+        }
+
+
+        return plan;
+
+    }
+    catch {
+
+        /*
+        If DeepSeek cut off the response,
+        automatically request a compact reconstruction.
+        */
+
+        return recoverPlanJSON(
+            text
+        );
+
+    }
 
 }
 
@@ -604,13 +957,6 @@ export async function replan(
     }
 
 
-    /*
-    Keep this prompt deliberately compact.
-
-    The previous version sent a large instruction block plus
-    a verbose JSON plan. This increases latency and token usage.
-    */
-
     const compactPlan =
         JSON.stringify(
             originalPlan
@@ -634,7 +980,9 @@ Requirements:
 - Recalculate task order and dependencies.
 - Update the critical path.
 - Determine whether the deadline remains realistic.
-- Explain the important changes in "changes".
+- Keep 5 to 8 tasks.
+- Keep descriptions concise.
+- Keep "changes" concise.
 - Return JSON only.
 `;
 
@@ -653,7 +1001,7 @@ Requirements:
                         userPrompt
                 }
             ],
-            3000
+            2800
         );
 
 
@@ -661,8 +1009,39 @@ Requirements:
         extractText(data);
 
 
-    return parseJSON(
-        text
-    );
+    try {
+
+        const result =
+            parseJSON(text);
+
+
+        if (
+            !validateReplan(result)
+        ) {
+
+            throw new Error(
+                "Invalid replan structure."
+            );
+
+        }
+
+
+        return result;
+
+    }
+    catch {
+
+        /*
+        DeepSeek may occasionally hit its output limit.
+        Attempt a compact reconstruction before failing.
+        */
+
+        return recoverReplanJSON(
+            text,
+            originalPlan,
+            problem
+        );
+
+    }
 
 }
