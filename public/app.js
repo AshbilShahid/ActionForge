@@ -31,6 +31,12 @@ const downloadPdfBtn =
 const loading =
     document.getElementById("loading");
 
+const loadingTitle =
+    document.getElementById("loadingTitle");
+
+const loadingText =
+    document.getElementById("loadingText");
+
 const hero =
     document.getElementById("hero");
 
@@ -51,13 +57,20 @@ const charCount =
    HELPERS
    ========================================================= */
 
-function showLoading(show) {
+function showLoading(show, title, text) {
 
     loading.classList.toggle(
         "hidden",
         !show
     );
 
+    if (title) {
+        loadingTitle.textContent = title;
+    }
+
+    if (text) {
+        loadingText.textContent = text;
+    }
 }
 
 
@@ -107,6 +120,65 @@ function setButtonLoading(
                 button.dataset.originalText;
 
         }
+
+    }
+
+}
+
+
+/* =========================================================
+   SAFE JSON RESPONSE
+   ========================================================= */
+
+async function readResponse(response) {
+
+    const text =
+        await response.text();
+
+    if (!text) {
+
+        throw new Error(
+            `Server returned an empty response (${response.status}).`
+        );
+
+    }
+
+
+    try {
+
+        return JSON.parse(text);
+
+    } catch {
+
+        console.error(
+            "NON-JSON SERVER RESPONSE:",
+            text
+        );
+
+        if (
+            text.includes("Inactivity Timeout")
+        ) {
+
+            throw new Error(
+                "The AI service took too long to respond. Please try Adapt My Plan again."
+            );
+
+        }
+
+        if (
+            text.includes("<HTML") ||
+            text.includes("<html")
+        ) {
+
+            throw new Error(
+                "The server returned an unexpected HTML response. Please try again."
+            );
+
+        }
+
+        throw new Error(
+            `Server returned an unexpected response: ${text.substring(0, 250)}`
+        );
 
     }
 
@@ -378,7 +450,11 @@ generateBtn.addEventListener(
         );
 
 
-        showLoading(true);
+        showLoading(
+            true,
+            "Forging your execution plan...",
+            "Breaking the goal into actionable steps."
+        );
 
 
         try {
@@ -404,28 +480,8 @@ generateBtn.addEventListener(
                 );
 
 
-            const contentType =
-                response.headers.get(
-                    "content-type"
-                ) || "";
-
-
-            if (!contentType.includes(
-                "application/json"
-            )) {
-
-                const raw =
-                    await response.text();
-
-                throw new Error(
-                    `Server returned an unexpected response: ${raw.substring(0, 200)}`
-                );
-
-            }
-
-
             const data =
-                await response.json();
+                await readResponse(response);
 
 
             if (!response.ok) {
@@ -447,7 +503,6 @@ generateBtn.addEventListener(
                 "hidden"
             );
 
-
             showError(
                 error.message ||
                 "Unable to generate plan."
@@ -457,7 +512,6 @@ generateBtn.addEventListener(
         finally {
 
             showLoading(false);
-
 
             setButtonLoading(
                 generateBtn,
@@ -515,66 +569,87 @@ replanBtn.addEventListener(
         );
 
 
-        showLoading(true);
+        showLoading(
+            true,
+            "Adapting your plan...",
+            "Recalculating priorities and dependencies."
+        );
 
 
         try {
 
-            const response =
-                await fetch(
-                    "/.netlify/functions/replan",
-                    {
+            const controller =
+                new AbortController();
 
-                        method: "POST",
 
-                        headers: {
-                            "Content-Type":
-                                "application/json"
-                        },
-
-                        body:
-                            JSON.stringify({
-
-                                plan:
-                                    currentPlan,
-
-                                problem
-
-                            })
-
-                    }
+            const timeout =
+                setTimeout(
+                    () => controller.abort(),
+                    30000
                 );
 
 
-            const contentType =
-                response.headers.get(
-                    "content-type"
-                ) || "";
+            let response;
 
 
-            if (!contentType.includes(
-                "application/json"
-            )) {
+            try {
 
-                const raw =
-                    await response.text();
+                response =
+                    await fetch(
+                        "/.netlify/functions/replan",
+                        {
 
-                throw new Error(
-                    `Server returned an unexpected response: ${raw.substring(0, 200)}`
-                );
+                            method: "POST",
+
+                            headers: {
+                                "Content-Type":
+                                    "application/json"
+                            },
+
+                            signal:
+                                controller.signal,
+
+                            body:
+                                JSON.stringify({
+
+                                    plan:
+                                        currentPlan,
+
+                                    problem
+
+                                })
+
+                        }
+                    );
+
+            }
+            finally {
+
+                clearTimeout(timeout);
 
             }
 
 
             const data =
-                await response.json();
+                await readResponse(response);
 
 
             if (!response.ok) {
 
                 throw new Error(
                     data.error ||
-                    "Unable to replan."
+                    "Unable to adapt the plan."
+                );
+
+            }
+
+
+            if (
+                !data.updated_plan
+            ) {
+
+                throw new Error(
+                    "The AI returned an incomplete adapted plan."
                 );
 
             }
@@ -592,19 +667,31 @@ replanBtn.addEventListener(
 
             problemInput.value = "";
 
+
         }
         catch (error) {
 
-            showError(
-                error.message ||
-                "Unable to replan."
-            );
+            if (
+                error.name === "AbortError"
+            ) {
+
+                showError(
+                    "The adaptation request took too long. Please try again."
+                );
+
+            } else {
+
+                showError(
+                    error.message ||
+                    "Unable to adapt the plan."
+                );
+
+            }
 
         }
         finally {
 
             showLoading(false);
-
 
             setButtonLoading(
                 replanBtn,
@@ -663,7 +750,9 @@ function renderChanges(changes) {
 
 
         item.textContent =
-            change;
+            typeof change === "string"
+                ? change
+                : JSON.stringify(change);
 
 
         container.appendChild(item);
@@ -679,30 +768,74 @@ function renderChanges(changes) {
 
 
 /* =========================================================
-   PDF GENERATION
+   PDF EXPORT
    ========================================================= */
 
-function downloadPlanAsPDF() {
+downloadPdfBtn.addEventListener(
+    "click",
+    async () => {
 
-    if (!currentPlan) {
+        if (!currentPlan) {
 
-        showError(
-            "Create a plan before downloading a PDF."
+            showError(
+                "Create a plan before downloading the PDF."
+            );
+
+            return;
+
+        }
+
+
+        setButtonLoading(
+            downloadPdfBtn,
+            true
         );
 
-        return;
+
+        try {
+
+            await generatePlanPDF();
+
+        }
+        catch (error) {
+
+            console.error(
+                "PDF ERROR:",
+                error
+            );
+
+            showError(
+                "Unable to create the PDF. Opening the print version instead."
+            );
+
+            window.print();
+
+        }
+        finally {
+
+            setButtonLoading(
+                downloadPdfBtn,
+                false
+            );
+
+        }
 
     }
+);
 
+
+/* =========================================================
+   PDF GENERATOR
+   ========================================================= */
+
+async function generatePlanPDF() {
 
     if (
         !window.jspdf ||
         !window.jspdf.jsPDF
     ) {
 
-        showError(
-            "PDF generator is unavailable. Please refresh the page and try again."
-        );
+        window.print();
 
         return;
 
@@ -714,393 +847,776 @@ function downloadPlanAsPDF() {
     } = window.jspdf;
 
 
-    const pdf =
+    const doc =
         new jsPDF({
+            orientation: "portrait",
             unit: "mm",
             format: "a4"
         });
 
 
     const pageWidth =
-        pdf.internal.pageSize.getWidth();
-
+        doc.internal.pageSize.getWidth();
 
     const pageHeight =
-        pdf.internal.pageSize.getHeight();
+        doc.internal.pageSize.getHeight();
 
 
-    const margin = 18;
+    const margin = 16;
 
-    const contentWidth =
-        pageWidth - margin * 2;
-
-
-    let y = margin;
+    let y = 18;
 
 
     /* =====================================================
-       HELPERS
+       COLORS
        ===================================================== */
 
-    function ensureSpace(height) {
+    const BG = [
+        8,
+        9,
+        13
+    ];
 
-        if (
-            y + height >
-            pageHeight - margin
-        ) {
+    const SURFACE = [
+        16,
+        18,
+        24
+    ];
 
-            pdf.addPage();
+    const SURFACE2 = [
+        21,
+        24,
+        32
+    ];
 
-            y = margin;
+    const TEXT = [
+        243,
+        245,
+        247
+    ];
 
-        }
+    const MUTED = [
+        140,
+        147,
+        161
+    ];
 
-    }
-
-
-    function addWrappedText(
-        text,
-        x,
-        startY,
-        maxWidth,
-        fontSize = 10,
-        lineHeight = 5
-    ) {
-
-        pdf.setFontSize(fontSize);
+    const ACCENT = [
+        184,
+        255,
+        90
+    ];
 
 
-        const lines =
-            pdf.splitTextToSize(
-                String(text || ""),
-                maxWidth
+    /* =====================================================
+       BACKGROUND
+       ===================================================== */
+
+    doc.setFillColor(
+        ...BG
+    );
+
+    doc.rect(
+        0,
+        0,
+        pageWidth,
+        pageHeight,
+        "F"
+    );
+
+
+    /* =====================================================
+       LOGO
+       ===================================================== */
+
+    let logoData = null;
+
+
+    try {
+
+        logoData =
+            await imageToDataURL(
+                "/actionforge-logo.png"
             );
 
+    }
+    catch (error) {
 
-        pdf.text(
-            lines,
-            x,
-            startY
-        );
-
-
-        return (
-            startY +
-            lines.length * lineHeight
+        console.warn(
+            "Logo could not be loaded:",
+            error
         );
 
     }
 
 
-    /* =====================================================
-       HEADER
-       ===================================================== */
+    if (logoData) {
 
-    pdf.setFont(
+        doc.addImage(
+            logoData,
+            "PNG",
+            margin,
+            y,
+            16,
+            16
+        );
+
+    }
+
+
+    const brandX =
+        logoData
+            ? margin + 21
+            : margin;
+
+
+    doc.setTextColor(
+        ...TEXT
+    );
+
+    doc.setFont(
         "helvetica",
         "bold"
     );
 
+    doc.setFontSize(16);
 
-    pdf.setFontSize(22);
-
-
-    pdf.text(
+    doc.text(
         "ActionForge",
-        margin,
-        y
+        brandX,
+        y + 7
     );
 
 
-    y += 8;
+    doc.setTextColor(
+        ...MUTED
+    );
 
-
-    pdf.setFont(
+    doc.setFont(
         "helvetica",
         "normal"
     );
 
+    doc.setFontSize(8);
 
-    pdf.setFontSize(9);
-
-
-    pdf.text(
-        "AI-powered execution planning",
-        margin,
-        y
+    doc.text(
+        "TURN INTENTIONS INTO EXECUTION",
+        brandX,
+        y + 12
     );
 
 
-    y += 10;
-
-
-    pdf.setDrawColor(
-        210,
-        210,
-        210
+    doc.setTextColor(
+        ...ACCENT
     );
 
-
-    pdf.line(
-        margin,
-        y,
-        pageWidth - margin,
-        y
-    );
-
-
-    y += 10;
-
-
-    /* =====================================================
-       GOAL
-       ===================================================== */
-
-    pdf.setFont(
+    doc.setFont(
         "helvetica",
         "bold"
     );
 
+    doc.setFontSize(7);
 
-    pdf.setFontSize(9);
+    doc.text(
+        "AI EXECUTION PLAN",
+        pageWidth - margin,
+        y + 7,
+        {
+            align: "right"
+        }
+    );
 
 
-    pdf.text(
+    y += 28;
+
+
+    /* =====================================================
+       TITLE
+       ===================================================== */
+
+    doc.setTextColor(
+        ...ACCENT
+    );
+
+    doc.setFontSize(8);
+
+    doc.text(
         "EXECUTION PLAN",
         margin,
         y
     );
 
 
-    y += 7;
+    y += 8;
 
 
-    pdf.setFontSize(18);
+    doc.setTextColor(
+        ...TEXT
+    );
+
+    doc.setFont(
+        "helvetica",
+        "bold"
+    );
+
+    doc.setFontSize(24);
 
 
-    y =
-        addWrappedText(
+    const titleLines =
+        doc.splitTextToSize(
             currentPlan.goal ||
-            "Untitled goal",
-            margin,
-            y,
-            contentWidth,
-            18,
-            7
+            "Your Goal",
+            pageWidth - margin * 2
         );
 
 
-    y += 5;
-
-
-    pdf.setFont(
-        "helvetica",
-        "normal"
+    doc.text(
+        titleLines,
+        margin,
+        y
     );
 
 
-    pdf.setFontSize(10);
+    y +=
+        titleLines.length *
+        10;
 
 
-    y =
-        addWrappedText(
-            currentPlan.summary ||
-            "",
-            margin,
-            y,
-            contentWidth,
-            10,
-            5
+    /* =====================================================
+       SUMMARY
+       ===================================================== */
+
+    if (currentPlan.summary) {
+
+        y += 3;
+
+
+        doc.setTextColor(
+            ...MUTED
         );
+
+        doc.setFont(
+            "helvetica",
+            "normal"
+        );
+
+        doc.setFontSize(10);
+
+
+        const summaryLines =
+            doc.splitTextToSize(
+                currentPlan.summary,
+                pageWidth - margin * 2
+            );
+
+
+        doc.text(
+            summaryLines,
+            margin,
+            y
+        );
+
+
+        y +=
+            summaryLines.length *
+            5.5;
+
+    }
 
 
     y += 8;
 
 
     /* =====================================================
-       PLAN INFORMATION
+       META CARDS
        ===================================================== */
 
-    ensureSpace(20);
+    const cardGap = 4;
+
+    const cardWidth =
+        (
+            pageWidth -
+            margin * 2 -
+            cardGap * 2
+        ) / 3;
 
 
-    pdf.setFont(
+    const stats = [
+
+        [
+            "DEADLINE",
+            currentPlan.deadline ||
+            "Not specified"
+        ],
+
+        [
+            "TASKS",
+            String(
+                Array.isArray(
+                    currentPlan.tasks
+                )
+                    ? currentPlan.tasks.length
+                    : 0
+            )
+        ],
+
+        [
+            "CRITICAL PATH",
+            String(
+                Array.isArray(
+                    currentPlan.critical_path
+                )
+                    ? currentPlan.critical_path.length
+                    : 0
+            )
+        ]
+
+    ];
+
+
+    stats.forEach(
+        (stat, index) => {
+
+            const x =
+                margin +
+                index *
+                (cardWidth + cardGap);
+
+
+            doc.setFillColor(
+                ...SURFACE
+            );
+
+
+            doc.roundedRect(
+                x,
+                y,
+                cardWidth,
+                22,
+                3,
+                3,
+                "F"
+            );
+
+
+            doc.setTextColor(
+                ...MUTED
+            );
+
+            doc.setFont(
+                "helvetica",
+                "bold"
+            );
+
+            doc.setFontSize(6.5);
+
+
+            doc.text(
+                stat[0],
+                x + 5,
+                y + 7
+            );
+
+
+            doc.setTextColor(
+                ...TEXT
+            );
+
+            doc.setFontSize(10);
+
+            doc.text(
+                stat[1],
+                x + 5,
+                y + 15
+            );
+
+        }
+    );
+
+
+    y += 31;
+
+
+    /* =====================================================
+       PRIORITY
+       ===================================================== */
+
+    doc.setFillColor(
+        30,
+        42,
+        22
+    );
+
+
+    doc.roundedRect(
+        margin,
+        y,
+        32,
+        9,
+        2,
+        2,
+        "F"
+    );
+
+
+    doc.setTextColor(
+        ...ACCENT
+    );
+
+    doc.setFont(
         "helvetica",
         "bold"
     );
 
+    doc.setFontSize(7);
 
-    pdf.setFontSize(9);
+
+    doc.text(
+        (
+            currentPlan.priority ||
+            "medium"
+        ).toUpperCase(),
+        margin + 16,
+        y + 6,
+        {
+            align: "center"
+        }
+    );
 
 
-    pdf.text(
-        `PRIORITY: ${(currentPlan.priority || "medium").toUpperCase()}`,
+    y += 18;
+
+
+    /* =====================================================
+       TASK SECTION
+       ===================================================== */
+
+    doc.setTextColor(
+        ...ACCENT
+    );
+
+    doc.setFontSize(7);
+
+    doc.text(
+        "STEP-BY-STEP",
         margin,
         y
     );
 
 
-    pdf.text(
-        `DEADLINE: ${currentPlan.deadline || "Not specified"}`,
-        margin + 60,
-        y
+    y += 7;
+
+
+    doc.setTextColor(
+        ...TEXT
     );
 
+    doc.setFontSize(15);
 
-    y += 10;
-
-
-    /* =====================================================
-       TASKS
-       ===================================================== */
-
-    pdf.setFontSize(13);
-
-
-    pdf.text(
+    doc.text(
         "Execution Path",
         margin,
         y
     );
 
 
-    y += 8;
+    y += 9;
 
 
     const tasks =
-        Array.isArray(currentPlan.tasks)
+        Array.isArray(
+            currentPlan.tasks
+        )
             ? currentPlan.tasks
             : [];
 
 
-    tasks.forEach(
-        (task, index) => {
+    for (
+        let i = 0;
+        i < tasks.length;
+        i++
+    ) {
 
-            const title =
-                `${index + 1}. ${task.title || "Untitled task"}`;
-
-
-            const description =
-                task.description || "";
-
-
-            const estimated =
-                task.estimated_minutes || 0;
+        const task =
+            tasks[i];
 
 
-            ensureSpace(30);
+        const description =
+            task.description ||
+            "";
 
 
-            pdf.setFont(
-                "helvetica",
-                "bold"
+        const title =
+            task.title ||
+            "Untitled task";
+
+
+        const estimated =
+            task.estimated_minutes ||
+            0;
+
+
+        const priority =
+            (
+                task.priority ||
+                "medium"
+            ).toUpperCase();
+
+
+        const descLines =
+            doc.splitTextToSize(
+                description,
+                pageWidth -
+                margin * 2 -
+                22
             );
 
 
-            pdf.setFontSize(11);
+        const taskHeight =
+            17 +
+            Math.max(
+                1,
+                descLines.length
+            ) * 4.5;
 
 
-            y =
-                addWrappedText(
-                    title,
-                    margin,
-                    y,
-                    contentWidth,
-                    11,
-                    5
-                );
+        /* New page if necessary */
 
+        if (
+            y + taskHeight >
+            pageHeight - 20
+        ) {
 
-            y += 1;
-
-
-            pdf.setFont(
-                "helvetica",
-                "normal"
+            addPdfPage(
+                doc,
+                BG,
+                pageWidth,
+                pageHeight
             );
 
-
-            pdf.setFontSize(9);
-
-
-            y =
-                addWrappedText(
-                    description,
-                    margin + 5,
-                    y,
-                    contentWidth - 5,
-                    9,
-                    4.5
-                );
-
-
-            y += 2;
-
-
-            pdf.setFontSize(8);
-
-
-            pdf.text(
-                `Priority: ${(task.priority || "medium").toUpperCase()}    Time: ${estimated} minutes`,
-                margin + 5,
-                y
-            );
-
-
-            y += 7;
+            y = 20;
 
         }
-    );
 
 
-    /* =====================================================
-       STRATEGIC INSIGHT
-       ===================================================== */
+        /* Task background */
 
-    ensureSpace(35);
-
-
-    pdf.setFont(
-        "helvetica",
-        "bold"
-    );
-
-
-    pdf.setFontSize(13);
-
-
-    pdf.text(
-        "AI Strategic Insight",
-        margin,
-        y
-    );
-
-
-    y += 7;
-
-
-    pdf.setFont(
-        "helvetica",
-        "normal"
-    );
-
-
-    pdf.setFontSize(9);
-
-
-    y =
-        addWrappedText(
-            currentPlan.insight ||
-            "",
-            margin,
-            y,
-            contentWidth,
-            9,
-            4.5
+        doc.setFillColor(
+            ...SURFACE
         );
 
 
-    y += 10;
+        doc.roundedRect(
+            margin,
+            y,
+            pageWidth - margin * 2,
+            taskHeight,
+            3,
+            3,
+            "F"
+        );
+
+
+        /* Number */
+
+        doc.setFillColor(
+            ...SURFACE2
+        );
+
+
+        doc.roundedRect(
+            margin + 5,
+            y + 5,
+            10,
+            10,
+            2,
+            2,
+            "F"
+        );
+
+
+        doc.setTextColor(
+            ...ACCENT
+        );
+
+        doc.setFont(
+            "helvetica",
+            "bold"
+        );
+
+        doc.setFontSize(8);
+
+
+        doc.text(
+            String(i + 1),
+            margin + 10,
+            y + 11.5,
+            {
+                align: "center"
+            }
+        );
+
+
+        /* Title */
+
+        doc.setTextColor(
+            ...TEXT
+        );
+
+        doc.setFontSize(9);
+
+        doc.text(
+            title,
+            margin + 21,
+            y + 8
+        );
+
+
+        /* Description */
+
+        doc.setTextColor(
+            ...MUTED
+        );
+
+        doc.setFont(
+            "helvetica",
+            "normal"
+        );
+
+        doc.setFontSize(7.5);
+
+
+        doc.text(
+            descLines,
+            margin + 21,
+            y + 13
+        );
+
+
+        /* Meta */
+
+        doc.setTextColor(
+            ...ACCENT
+        );
+
+        doc.setFontSize(6.5);
+
+
+        doc.text(
+            `${priority}  •  ${estimated} MIN`,
+            pageWidth - margin - 5,
+            y + 8,
+            {
+                align: "right"
+            }
+        );
+
+
+        y +=
+            taskHeight + 4;
+
+    }
+
+
+    /* =====================================================
+       AI INSIGHT
+       ===================================================== */
+
+    const insight =
+        currentPlan.insight ||
+        "";
+
+
+    if (insight) {
+
+        const insightLines =
+            doc.splitTextToSize(
+                insight,
+                pageWidth -
+                margin * 2 -
+                20
+            );
+
+
+        const insightHeight =
+            17 +
+            insightLines.length *
+            4.5;
+
+
+        if (
+            y + insightHeight >
+            pageHeight - 20
+        ) {
+
+            addPdfPage(
+                doc,
+                BG,
+                pageWidth,
+                pageHeight
+            );
+
+            y = 20;
+
+        }
+
+
+        doc.setFillColor(
+            21,
+            30,
+            17
+        );
+
+
+        doc.roundedRect(
+            margin,
+            y,
+            pageWidth - margin * 2,
+            insightHeight,
+            3,
+            3,
+            "F"
+        );
+
+
+        doc.setTextColor(
+            ...ACCENT
+        );
+
+        doc.setFont(
+            "helvetica",
+            "bold"
+        );
+
+        doc.setFontSize(7);
+
+
+        doc.text(
+            "AI STRATEGIC INSIGHT",
+            margin + 8,
+            y + 8
+        );
+
+
+        doc.setTextColor(
+            ...MUTED
+        );
+
+        doc.setFont(
+            "helvetica",
+            "normal"
+        );
+
+        doc.setFontSize(7.5);
+
+
+        doc.text(
+            insightLines,
+            margin + 8,
+            y + 14
+        );
+
+    }
 
 
     /* =====================================================
@@ -1108,7 +1624,7 @@ function downloadPlanAsPDF() {
        ===================================================== */
 
     const totalPages =
-        pdf.internal.getNumberOfPages();
+        doc.internal.getNumberOfPages();
 
 
     for (
@@ -1117,29 +1633,50 @@ function downloadPlanAsPDF() {
         page++
     ) {
 
-        pdf.setPage(page);
+        doc.setPage(page);
 
 
-        pdf.setFont(
+        doc.setDrawColor(
+            45,
+            48,
+            57
+        );
+
+
+        doc.line(
+            margin,
+            pageHeight - 12,
+            pageWidth - margin,
+            pageHeight - 12
+        );
+
+
+        doc.setTextColor(
+            ...MUTED
+        );
+
+        doc.setFont(
             "helvetica",
             "normal"
         );
 
+        doc.setFontSize(6.5);
 
-        pdf.setFontSize(8);
 
-
-        pdf.setTextColor(
-            120,
-            120,
-            120
+        doc.text(
+            "ActionForge • AI-powered execution planning",
+            margin,
+            pageHeight - 7
         );
 
 
-        pdf.text(
-            `ActionForge • Page ${page} of ${totalPages}`,
-            margin,
-            pageHeight - 10
+        doc.text(
+            `PAGE ${page} / ${totalPages}`,
+            pageWidth - margin,
+            pageHeight - 7,
+            {
+                align: "right"
+            }
         );
 
     }
@@ -1150,46 +1687,122 @@ function downloadPlanAsPDF() {
        ===================================================== */
 
     const safeName =
-        String(
+        (
             currentPlan.goal ||
-            "execution-plan"
+            "actionforge-plan"
         )
-            .toLowerCase()
-            .replace(
-                /[^a-z0-9]+/g,
-                "-"
-            )
-            .replace(
-                /^-+|-+$/g,
-                ""
-            )
-            .substring(
-                0,
-                60
-            );
+        .replace(
+            /[^a-z0-9]+/gi,
+            "-"
+        )
+        .replace(
+            /^-+|-+$/g,
+            ""
+        )
+        .toLowerCase();
 
 
-    pdf.save(
-        `actionforge-${safeName || "execution-plan"}.pdf`
+    doc.save(
+        `actionforge-${safeName || "plan"}.pdf`
     );
 
 }
 
 
 /* =========================================================
-   PDF BUTTON
+   PDF PAGE HELPER
    ========================================================= */
 
-downloadPdfBtn.addEventListener(
-    "click",
-    () => {
+function addPdfPage(
+    doc,
+    bg,
+    width,
+    height
+) {
 
-        clearError();
+    doc.addPage();
 
-        downloadPlanAsPDF();
 
-    }
-);
+    doc.setFillColor(
+        ...bg
+    );
+
+
+    doc.rect(
+        0,
+        0,
+        width,
+        height,
+        "F"
+    );
+
+}
+
+
+/* =========================================================
+   IMAGE → DATA URL
+   ========================================================= */
+
+function imageToDataURL(
+    url
+) {
+
+    return new Promise(
+        (resolve, reject) => {
+
+            const image =
+                new Image();
+
+
+            image.onload =
+                () => {
+
+                    const canvas =
+                        document.createElement(
+                            "canvas"
+                        );
+
+
+                    canvas.width =
+                        image.naturalWidth;
+
+                    canvas.height =
+                        image.naturalHeight;
+
+
+                    const context =
+                        canvas.getContext(
+                            "2d"
+                        );
+
+
+                    context.drawImage(
+                        image,
+                        0,
+                        0
+                    );
+
+
+                    resolve(
+                        canvas.toDataURL(
+                            "image/png"
+                        )
+                    );
+
+                };
+
+
+            image.onerror =
+                reject;
+
+
+            image.src =
+                `${url}?v=${Date.now()}`;
+
+        }
+    );
+
+}
 
 
 /* =========================================================
@@ -1202,28 +1815,22 @@ newPlanBtn.addEventListener(
 
         currentPlan = null;
 
-
         goalInput.value = "";
 
         problemInput.value = "";
 
-
         charCount.textContent =
             "0 / 5000";
-
 
         planSection.classList.add(
             "hidden"
         );
 
-
         hero.classList.remove(
             "hidden"
         );
 
-
         clearError();
-
 
         window.scrollTo({
             top: 0,
@@ -1244,8 +1851,7 @@ goalInput.addEventListener(
 
         if (
             event.key === "Enter" &&
-            (event.ctrlKey ||
-             event.metaKey)
+            (event.ctrlKey || event.metaKey)
         ) {
 
             generateBtn.click();
