@@ -15,14 +15,7 @@
         content="ActionForge turns vague goals into executable plans and adapts them when reality changes."
     >
 
-    <meta
-        name="theme-color"
-        content="#08090d"
-    >
-
-    <title>
-        ActionForge — Turn intentions into execution
-    </title>
+    <title>ActionForge — Turn intentions into execution</title>
 
 
     <!-- FAVICON -->
@@ -30,11 +23,22 @@
     <link
         rel="icon"
         type="image/png"
-        href="/actionforge-logo.png"
+        href="/favicon-actionforge-logo.png"
+    >
+
+    <link
+        rel="shortcut icon"
+        type="image/png"
+        href="/favicon-actionforge-logo.png"
+    >
+
+    <link
+        rel="apple-touch-icon"
+        href="/favicon-actionforge-logo.png"
     >
 
 
-    <!-- STYLESHEET -->
+    <!-- STYLES -->
 
     <link
         rel="stylesheet"
@@ -57,22 +61,13 @@
 
         <div class="brand">
 
+            <img
+                src="/actionforge-logo.png"
+                alt="ActionForge"
+                class="brand-logo"
+            >
 
-            <!-- LOGO -->
-
-            <div class="brand-mark">
-
-                <img
-                    src="/actionforge-logo.png"
-                    alt="ActionForge logo"
-                >
-
-            </div>
-
-
-            <!-- BRAND TEXT -->
-
-            <div>
+            <div class="brand-text">
 
                 <div class="brand-name">
                     ActionForge
@@ -86,8 +81,6 @@
 
         </div>
 
-
-        <!-- STATUS -->
 
         <div class="status">
 
@@ -144,8 +137,6 @@
             </p>
 
 
-            <!-- GOAL INPUT -->
-
             <div class="goal-box">
 
                 <textarea
@@ -181,8 +172,6 @@
 
             </div>
 
-
-            <!-- EXAMPLES -->
 
             <div class="examples">
 
@@ -231,13 +220,11 @@
 
             <div class="loader-ring"></div>
 
-
-            <h2>
+            <h2 id="loadingTitle">
                 Forging your execution plan...
             </h2>
 
-
-            <p>
+            <p id="loadingText">
                 Breaking the goal into actionable steps.
             </p>
 
@@ -294,13 +281,11 @@
 
             <div class="stats-grid">
 
-
                 <div class="stat-card">
 
                     <span class="stat-label">
                         DEADLINE
                     </span>
-
 
                     <strong id="deadline">
                         —
@@ -315,7 +300,6 @@
                         TASKS
                     </span>
 
-
                     <strong id="taskCount">
                         —
                     </strong>
@@ -329,12 +313,32 @@
                         CRITICAL PATH
                     </span>
 
-
                     <strong id="criticalCount">
                         —
                     </strong>
 
                 </div>
+
+            </div>
+
+
+
+            <!-- PDF ACTIONS -->
+
+            <div class="plan-actions">
+
+                <button
+                    id="downloadPdfBtn"
+                    class="pdf-button"
+                >
+
+                    <span class="pdf-icon">
+                        ↓
+                    </span>
+
+                    Download Plan PDF
+
+                </button>
 
             </div>
 
@@ -349,7 +353,6 @@
                     <span class="eyebrow">
                         STEP-BY-STEP
                     </span>
-
 
                     <h3>
                         Execution Path
@@ -375,13 +378,11 @@
                     ✦
                 </div>
 
-
                 <div>
 
                     <span class="insight-label">
                         AI STRATEGIC INSIGHT
                     </span>
-
 
                     <p id="insight"></p>
 
@@ -391,66 +392,9 @@
 
 
 
-            <!-- =================================================
-                 PDF DOWNLOAD
-                 ================================================= -->
-
-            <div class="pdf-card">
-
-                <div class="pdf-content">
-
-                    <div class="pdf-icon">
-                        ↓
-                    </div>
-
-
-                    <div>
-
-                        <span class="pdf-label">
-                            WANT TO TAKE IT WITH YOU?
-                        </span>
-
-
-                        <h3>
-                            Save your execution plan
-                        </h3>
-
-
-                        <p>
-                            Download a clean PDF version of
-                            this plan for offline use.
-                        </p>
-
-                    </div>
-
-                </div>
-
-
-                <button
-                    id="downloadPdfBtn"
-                    class="pdf-button"
-                >
-
-                    <span>
-                        Download PDF
-                    </span>
-
-                    <span>
-                        ↓
-                    </span>
-
-                </button>
-
-            </div>
-
-
-
-            <!-- =================================================
-                 REPLAN
-                 ================================================= -->
+            <!-- REPLAN -->
 
             <section class="replan-card">
-
 
                 <div class="replan-header">
 
@@ -460,11 +404,9 @@
                             REALITY CHECK
                         </span>
 
-
                         <h3>
                             Something changed?
                         </h3>
-
 
                         <p>
                             Plans are useful.
@@ -516,7 +458,6 @@
                     WHAT CHANGED
                 </span>
 
-
                 <div id="changes"></div>
 
             </section>
@@ -551,7 +492,6 @@
                 Something went wrong.
             </strong>
 
-
             <span id="errorMessage"></span>
 
         </div>
@@ -570,7 +510,6 @@
             ActionForge
         </span>
 
-
         <span>
             AI-powered execution planning
         </span>
@@ -580,17 +519,16 @@
 </div>
 
 
-
 <!-- =========================================================
      PDF LIBRARY
      ========================================================= -->
 
 <script
-    src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"
+    src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"
 ></script>
 
 
-<!-- APP -->
+<!-- APPLICATION -->
 
 <script src="/app.js"></script>
 
