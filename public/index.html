@@ -2,6 +2,7 @@
 <html lang="en">
 
 <head>
+
     <meta charset="UTF-8">
 
     <meta
@@ -21,12 +22,6 @@
         href="/style.css"
     >
 
-    <!-- PDF GENERATION -->
-    <script
-        src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.2/jspdf.umd.min.js"
-        defer
-    ></script>
-
 </head>
 
 
@@ -34,7 +29,10 @@
 
 <div class="app-shell">
 
-    <!-- ================= HEADER ================= -->
+
+    <!-- =====================================================
+         HEADER
+         ===================================================== -->
 
     <header class="topbar">
 
@@ -71,11 +69,16 @@
 
 
 
-    <!-- ================= MAIN ================= -->
+    <!-- =====================================================
+         MAIN
+         ===================================================== -->
 
     <main>
 
-        <!-- ================= HERO ================= -->
+
+        <!-- =================================================
+             HERO
+             ================================================= -->
 
         <section
             class="hero"
@@ -88,8 +91,13 @@
 
 
             <h1>
+
                 What are you trying
-                <span>to accomplish?</span>
+
+                <span>
+                    to accomplish?
+                </span>
+
             </h1>
 
 
@@ -103,6 +111,8 @@
 
             </p>
 
+
+            <!-- GOAL INPUT -->
 
             <div class="goal-box">
 
@@ -123,6 +133,7 @@
                     <button
                         id="generateBtn"
                         class="primary-button"
+                        type="button"
                     >
 
                         <span>
@@ -140,6 +151,8 @@
             </div>
 
 
+            <!-- EXAMPLES -->
+
             <div class="examples">
 
                 <span>
@@ -149,6 +162,7 @@
 
                 <button
                     class="example"
+                    type="button"
                     data-goal="I need to prepare for a difficult exam in 10 days while still attending my normal classes."
                 >
                     Exam preparation
@@ -157,6 +171,7 @@
 
                 <button
                     class="example"
+                    type="button"
                     data-goal="I want to launch a portfolio website this weekend, but I have no existing website."
                 >
                     Launch a website
@@ -165,6 +180,7 @@
 
                 <button
                     class="example"
+                    type="button"
                     data-goal="I need to organize a small university event in two weeks with a limited budget."
                 >
                     Organize an event
@@ -176,7 +192,9 @@
 
 
 
-        <!-- ================= LOADING ================= -->
+        <!-- =================================================
+             LOADING
+             ================================================= -->
 
         <section
             id="loading"
@@ -197,14 +215,17 @@
 
 
 
-        <!-- ================= PLAN ================= -->
+        <!-- =================================================
+             PLAN
+             ================================================= -->
 
         <section
             id="planSection"
             class="plan-section hidden"
         >
 
-            <!-- ================= PLAN HEADER ================= -->
+
+            <!-- PLAN HEADER -->
 
             <div class="plan-top">
 
@@ -239,34 +260,12 @@
 
 
 
-            <!-- ================= PLAN ACTIONS ================= -->
-
-            <div
-                class="plan-actions"
-                id="planActions"
-            >
-
-                <button
-                    id="downloadPdfBtn"
-                    class="secondary-button pdf-button"
-                    type="button"
-                >
-
-                    <span>
-                        ↓
-                    </span>
-
-                    Download Plan as PDF
-
-                </button>
-
-            </div>
-
-
-
-            <!-- ================= STATS ================= -->
+            <!-- =================================================
+                 STATS
+                 ================================================= -->
 
             <div class="stats-grid">
+
 
                 <div class="stat-card">
 
@@ -310,7 +309,9 @@
 
 
 
-            <!-- ================= TASKS ================= -->
+            <!-- =================================================
+                 TASKS
+                 ================================================= -->
 
             <div class="section-heading">
 
@@ -336,7 +337,9 @@
 
 
 
-            <!-- ================= AI INSIGHT ================= -->
+            <!-- =================================================
+                 AI INSIGHT
+                 ================================================= -->
 
             <div class="insight-card">
 
@@ -358,7 +361,9 @@
 
 
 
-            <!-- ================= REPLAN ================= -->
+            <!-- =================================================
+                 REALITY CHECK / REPLAN
+                 ================================================= -->
 
             <section class="replan-card">
 
@@ -414,7 +419,9 @@
 
 
 
-            <!-- ================= CHANGES ================= -->
+            <!-- =================================================
+                 CHANGES
+                 ================================================= -->
 
             <section
                 id="changesSection"
@@ -425,13 +432,40 @@
                     WHAT CHANGED
                 </span>
 
+
                 <div id="changes"></div>
 
             </section>
 
 
 
-            <!-- ================= NEW PLAN ================= -->
+            <!-- =================================================
+                 PDF EXPORT
+                 ================================================= -->
+
+            <div class="pdf-actions">
+
+                <button
+                    id="downloadPdfBtn"
+                    class="pdf-button"
+                    type="button"
+                >
+
+                    <span>
+                        ↓
+                    </span>
+
+                    Download Plan as PDF
+
+                </button>
+
+            </div>
+
+
+
+            <!-- =================================================
+                 NEW PLAN
+                 ================================================= -->
 
             <button
                 id="newPlanBtn"
@@ -447,7 +481,9 @@
 
 
 
-        <!-- ================= ERROR ================= -->
+        <!-- =================================================
+             ERROR
+             ================================================= -->
 
         <div
             id="error"
@@ -466,7 +502,9 @@
 
 
 
-    <!-- ================= FOOTER ================= -->
+    <!-- =====================================================
+         FOOTER
+         ===================================================== -->
 
     <footer>
 
@@ -480,191 +518,9 @@
 
     </footer>
 
-</div>
-
-
-
-<!-- =========================================================
-     PDF EXPORT TEMPLATE
-     Hidden from the normal interface.
-     Used by app.js when generating the PDF.
-     ========================================================= -->
-
-<div
-    id="pdfContent"
-    style="
-        position: absolute;
-        left: -99999px;
-        top: 0;
-        width: 794px;
-        padding: 50px;
-        background: white;
-        color: #111;
-        font-family: Arial, Helvetica, sans-serif;
-    "
->
-
-    <div
-        style="
-            border-bottom: 3px solid #111;
-            padding-bottom: 20px;
-            margin-bottom: 25px;
-        "
-    >
-
-        <h1
-            style="
-                margin: 0;
-                font-size: 32px;
-            "
-        >
-            ActionForge
-        </h1>
-
-
-        <p
-            style="
-                margin: 6px 0 0;
-                color: #666;
-                font-size: 14px;
-            "
-        >
-            AI Execution Plan
-        </p>
-
-    </div>
-
-
-    <h2
-        id="pdfGoal"
-        style="
-            font-size: 24px;
-            margin-bottom: 12px;
-        "
-    >
-        Your Goal
-    </h2>
-
-
-    <p
-        id="pdfSummary"
-        style="
-            font-size: 14px;
-            line-height: 1.6;
-            color: #444;
-            margin-bottom: 25px;
-        "
-    ></p>
-
-
-    <div
-        style="
-            display: flex;
-            gap: 30px;
-            margin-bottom: 30px;
-            padding: 15px;
-            background: #f3f3f3;
-        "
-    >
-
-        <div>
-
-            <strong>
-                PRIORITY
-            </strong>
-
-            <div id="pdfPriority">
-                —
-            </div>
-
-        </div>
-
-
-        <div>
-
-            <strong>
-                DEADLINE
-            </strong>
-
-            <div id="pdfDeadline">
-                —
-            </div>
-
-        </div>
-
-
-        <div>
-
-            <strong>
-                TASKS
-            </strong>
-
-            <div id="pdfTaskCount">
-                —
-            </div>
-
-        </div>
-
-    </div>
-
-
-    <h2
-        style="
-            font-size: 20px;
-            margin-bottom: 15px;
-        "
-    >
-        Execution Path
-    </h2>
-
-
-    <div id="pdfTasks"></div>
-
-
-    <div
-        style="
-            margin-top: 30px;
-            padding: 20px;
-            border-left: 4px solid #111;
-            background: #f5f5f5;
-        "
-    >
-
-        <strong>
-            AI STRATEGIC INSIGHT
-        </strong>
-
-
-        <p
-            id="pdfInsight"
-            style="
-                line-height: 1.6;
-                margin-bottom: 0;
-            "
-        ></p>
-
-    </div>
-
-
-    <div
-        style="
-            margin-top: 40px;
-            padding-top: 15px;
-            border-top: 1px solid #ccc;
-            color: #777;
-            font-size: 11px;
-        "
-    >
-
-        Generated by ActionForge
-
-    </div>
 
 </div>
 
-
-
-<!-- ================= APP SCRIPT ================= -->
 
 <script src="/app.js"></script>
 
