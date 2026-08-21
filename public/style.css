@@ -100,7 +100,7 @@ main {
 
     justify-content: space-between;
 
-    padding: 28px 0;
+    padding: 22px 0;
 
     border-bottom:
         1px solid var(--border);
@@ -117,11 +117,15 @@ main {
 }
 
 
+/* =========================================================
+   LOGO
+   ========================================================= */
+
 .brand-mark {
 
-    width: 40px;
+    width: 44px;
 
-    height: 40px;
+    height: 44px;
 
     display: grid;
 
@@ -134,6 +138,9 @@ main {
     background: var(--accent);
 
     flex-shrink: 0;
+
+    box-shadow:
+        0 5px 22px rgba(184,255,90,0.08);
 }
 
 
@@ -147,6 +154,17 @@ main {
 
     object-fit: cover;
 }
+
+
+/*
+   If your logo has transparent padding and appears too small,
+   change object-fit: cover to contain.
+
+   For transparent logos, this usually works better:
+
+   object-fit: contain;
+*/
+
 
 .brand-name {
 
@@ -350,10 +368,9 @@ button {
 
 button:disabled {
 
+    cursor: wait;
+
     opacity: 0.6;
-
-    cursor: not-allowed;
-
 }
 
 
@@ -834,6 +851,140 @@ button:disabled {
 
 
 /* =========================================================
+   PDF DOWNLOAD
+   ========================================================= */
+
+.pdf-card {
+
+    display: flex;
+
+    align-items: center;
+
+    justify-content: space-between;
+
+    gap: 25px;
+
+    margin-top: 28px;
+
+    padding: 22px;
+
+    border-radius: 16px;
+
+    background: var(--surface);
+
+    border:
+        1px solid
+        rgba(184,255,90,0.14);
+
+}
+
+
+.pdf-content {
+
+    display: flex;
+
+    align-items: center;
+
+    gap: 16px;
+}
+
+
+.pdf-icon {
+
+    width: 42px;
+
+    height: 42px;
+
+    display: grid;
+
+    place-items: center;
+
+    flex-shrink: 0;
+
+    border-radius: 11px;
+
+    background: var(--surface-3);
+
+    color: var(--accent);
+
+    font-size: 21px;
+
+    font-weight: 900;
+}
+
+
+.pdf-label {
+
+    display: block;
+
+    color: var(--accent);
+
+    font-size: 9px;
+
+    font-weight: 800;
+
+    letter-spacing: 0.12em;
+
+    margin-bottom: 5px;
+}
+
+
+.pdf-content h3 {
+
+    font-size: 17px;
+
+    margin-bottom: 4px;
+}
+
+
+.pdf-content p {
+
+    color: var(--muted);
+
+    font-size: 12px;
+
+    line-height: 1.5;
+}
+
+
+.pdf-button {
+
+    display: flex;
+
+    align-items: center;
+
+    gap: 12px;
+
+    flex-shrink: 0;
+
+    padding: 12px 16px;
+
+    border-radius: 10px;
+
+    background: var(--accent);
+
+    color: #08090d;
+
+    font-weight: 800;
+
+    font-size: 12px;
+
+    transition:
+        transform 0.2s,
+        box-shadow 0.2s;
+}
+
+
+.pdf-button:hover {
+
+    transform: translateY(-2px);
+
+    box-shadow:
+        0 8px 25px rgba(184,255,90,0.16);
+}
+
+
+/* =========================================================
    REPLAN
    ========================================================= */
 
@@ -988,73 +1139,6 @@ button:disabled {
 
 
 /* =========================================================
-   PDF EXPORT
-   ========================================================= */
-
-.pdf-actions {
-
-    display: flex;
-
-    justify-content: center;
-
-    margin-top: 30px;
-}
-
-
-.pdf-button {
-
-    display: inline-flex;
-
-    align-items: center;
-
-    justify-content: center;
-
-    gap: 10px;
-
-    padding: 13px 18px;
-
-    border-radius: 10px;
-
-    background: var(--surface-3);
-
-    color: var(--text);
-
-    border: 1px solid var(--border);
-
-    font-weight: 700;
-
-    font-size: 12px;
-
-    cursor: pointer;
-
-    transition:
-        transform 0.2s,
-        border-color 0.2s,
-        color 0.2s,
-        background 0.2s;
-}
-
-
-.pdf-button:hover {
-
-    transform: translateY(-2px);
-
-    border-color:
-        rgba(184,255,90,0.4);
-
-    color: var(--accent);
-}
-
-
-.pdf-button span {
-
-    font-size: 17px;
-
-    line-height: 1;
-}
-
-
-/* =========================================================
    NEW PLAN
    ========================================================= */
 
@@ -1148,211 +1232,6 @@ footer {
 
 
 /* =========================================================
-   PRINT / PDF
-   ========================================================= */
-
-@media print {
-
-    @page {
-
-        size: A4;
-
-        margin: 18mm;
-
-    }
-
-
-    * {
-
-        -webkit-print-color-adjust: exact !important;
-
-        print-color-adjust: exact !important;
-
-    }
-
-
-    body {
-
-        background: white !important;
-
-        color: #111 !important;
-
-    }
-
-
-    .app-shell {
-
-        width: 100%;
-
-        max-width: none;
-
-    }
-
-
-    .topbar {
-
-        border-bottom: 1px solid #ddd;
-
-    }
-
-
-    .brand-mark {
-
-        background: #111 !important;
-
-        color: white !important;
-
-    }
-
-
-    .brand-tagline,
-
-    .status,
-
-    .hero,
-
-    .replan-card,
-
-    .changes-card,
-
-    .pdf-actions,
-
-    .new-plan-button,
-
-    footer,
-
-    .error {
-
-        display: none !important;
-
-    }
-
-
-    .plan-section {
-
-        display: block !important;
-
-        max-width: none;
-
-        margin: 0;
-
-        padding: 20px 0;
-
-    }
-
-
-    .plan-top {
-
-        margin-bottom: 25px;
-
-    }
-
-
-    .plan-top h2 {
-
-        color: #111 !important;
-
-    }
-
-
-    .eyebrow {
-
-        color: #5c8f20 !important;
-
-    }
-
-
-    .plan-summary,
-
-    .task-content p,
-
-    .insight-card p {
-
-        color: #444 !important;
-
-    }
-
-
-    .priority-badge {
-
-        background: #eef7df !important;
-
-        color: #527c1c !important;
-
-    }
-
-
-    .stats-grid {
-
-        grid-template-columns:
-            repeat(3, 1fr);
-
-    }
-
-
-    .stat-card,
-
-    .task {
-
-        background: white !important;
-
-        border: 1px solid #ddd !important;
-
-        color: #111 !important;
-
-        break-inside: avoid;
-
-    }
-
-
-    .stat-label,
-
-    .task-meta span {
-
-        color: #666 !important;
-
-    }
-
-
-    .task-number {
-
-        background: #f1f1f1 !important;
-
-        color: #527c1c !important;
-
-    }
-
-
-    .task-content h4 {
-
-        color: #111 !important;
-
-    }
-
-
-    .insight-card {
-
-        background: #f5f9ee !important;
-
-        border: 1px solid #d8e8bd !important;
-
-        break-inside: avoid;
-
-    }
-
-
-    .insight-icon {
-
-        background: #111 !important;
-
-        color: white !important;
-
-    }
-
-}
-
-
-/* =========================================================
    MOBILE
    ========================================================= */
 
@@ -1400,7 +1279,18 @@ footer {
     }
 
 
+    .pdf-card {
+
+        flex-direction: column;
+
+        align-items: stretch;
+
+    }
+
+
     .pdf-button {
+
+        justify-content: center;
 
         width: 100%;
 
