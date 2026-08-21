@@ -3,17 +3,17 @@ import OpenAI from "openai";
 const apiKey = process.env.AIHUBMIX_API_KEY;
 
 if (!apiKey) {
-  throw new Error(
-    "AIHUBMIX_API_KEY environment variable is not configured."
-  );
+    throw new Error(
+        "AIHUBMIX_API_KEY environment variable is not configured."
+    );
 }
 
 const client = new OpenAI({
-  apiKey,
-  baseURL: "https://aihubmix.com"
+    apiKey: apiKey.trim(),
+    baseURL: "https://aihubmix.com/v1"
 });
 
-const MODEL = "gpt-5.5-free";
+const MODEL = "gpt-5.5";
 
 
 const SYSTEM_PROMPT = `
@@ -27,7 +27,7 @@ You are NOT a web research assistant.
 IMPORTANT:
 - Do not browse the web.
 - Do not perform web searches.
-- Do not request external information.
+- Do not use web-search tools.
 - Work only with information supplied by the user.
 - If information is missing, make reasonable assumptions.
 - Clearly state important assumptions.
@@ -46,12 +46,6 @@ Your planning process:
 10. Provide one useful strategic insight.
 
 Prefer concrete actions.
-
-Bad:
-"Work on the website."
-
-Good:
-"Create the homepage structure and write the hero section."
 
 Return ONLY valid JSON.
 
@@ -90,56 +84,70 @@ Rules:
 
 export async function generatePlan(goal) {
 
-  if (!goal || !goal.trim()) {
-    throw new Error("Goal cannot be empty.");
-  }
-
-  const response = await client.chat.completions.create({
-
-    model: MODEL,
-
-    messages: [
-      {
-        role: "system",
-        content: SYSTEM_PROMPT
-      },
-      {
-        role: "user",
-        content: goal.trim()
-      }
-    ],
-
-    response_format: {
-      type: "json_object"
+    if (!goal || !goal.trim()) {
+        throw new Error("Goal cannot be empty.");
     }
 
-  });
+    const response =
+        await client.chat.completions.create({
 
-  const content =
-    response.choices?.[0]?.message?.content;
+            model: MODEL,
 
-  if (!content) {
-    throw new Error("AI returned an empty response.");
-  }
+            messages: [
+                {
+                    role: "system",
+                    content: SYSTEM_PROMPT
+                },
+                {
+                    role: "user",
+                    content: goal.trim()
+                }
+            ],
 
-  return JSON.parse(content);
+            response_format: {
+                type: "json_object"
+            }
+
+        });
+
+    const content =
+        response.choices?.[0]?.message?.content;
+
+    if (!content) {
+        throw new Error(
+            "AI returned an empty response."
+        );
+    }
+
+    return JSON.parse(content);
 }
 
 
-export async function replan(originalPlan, problem) {
+export async function replan(
+    originalPlan,
+    problem
+) {
 
-  if (!originalPlan) {
-    throw new Error("Original plan is required.");
-  }
+    if (!originalPlan) {
+        throw new Error(
+            "Original plan is required."
+        );
+    }
 
-  if (!problem || !problem.trim()) {
-    throw new Error("Problem description is required.");
-  }
+    if (!problem || !problem.trim()) {
+        throw new Error(
+            "Problem description is required."
+        );
+    }
 
-  const prompt = `
+    const prompt = `
 Here is the user's existing ActionForge plan:
 
-${JSON.stringify(originalPlan, null, 2)}
+${JSON.stringify(
+    originalPlan,
+    null,
+    2
+)}
 
 The user reports:
 
@@ -160,6 +168,7 @@ Your objectives:
 
 Do not browse the web.
 Do not perform web searches.
+Do not use web-search tools.
 Do not use external information.
 
 Return ONLY valid JSON.
@@ -183,34 +192,36 @@ Use:
 }
 `;
 
-  const response =
-    await client.chat.completions.create({
+    const response =
+        await client.chat.completions.create({
 
-      model: MODEL,
+            model: MODEL,
 
-      messages: [
-        {
-          role: "system",
-          content: SYSTEM_PROMPT
-        },
-        {
-          role: "user",
-          content: prompt
-        }
-      ],
+            messages: [
+                {
+                    role: "system",
+                    content: SYSTEM_PROMPT
+                },
+                {
+                    role: "user",
+                    content: prompt
+                }
+            ],
 
-      response_format: {
-        type: "json_object"
-      }
+            response_format: {
+                type: "json_object"
+            }
 
-    });
+        });
 
-  const content =
-    response.choices?.[0]?.message?.content;
+    const content =
+        response.choices?.[0]?.message?.content;
 
-  if (!content) {
-    throw new Error("AI returned an empty response.");
-  }
+    if (!content) {
+        throw new Error(
+            "AI returned an empty response."
+        );
+    }
 
-  return JSON.parse(content);
+    return JSON.parse(content);
 }
