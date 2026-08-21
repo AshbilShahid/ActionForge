@@ -1,7 +1,3 @@
-/* =========================================================
-   ACTIONFORGE AI ENGINE
-   ========================================================= */
-
 const apiKey = process.env.AI_API_KEY;
 
 if (!apiKey) {
@@ -9,13 +5,8 @@ if (!apiKey) {
 }
 
 const API_URL = "https://api.b.ai/v1/chat/completions";
-
 const MODEL = "deepseek-v4-flash";
 
-
-/* =========================================================
-   SYSTEM PROMPT
-   ========================================================= */
 
 const SYSTEM_PROMPT = `
 You are ActionForge, an AI execution-planning assistant.
@@ -74,87 +65,12 @@ Rules:
 
 
 /* =========================================================
-   REPLAN SYSTEM PROMPT
-   ========================================================= */
-
-const REPLAN_SYSTEM_PROMPT = `
-You are ActionForge, an AI execution-planning assistant.
-
-Your job is to adapt an existing execution plan when reality changes.
-
-IMPORTANT:
-- Do NOT browse the web.
-- Do NOT perform web searches.
-- Do NOT use Google Search.
-- Do NOT use external search tools.
-- Do NOT use tools.
-- Use ONLY the existing plan and the user's new information.
-- Preserve the original goal.
-- Keep the plan practical.
-- Never invent external facts.
-
-Return ONLY valid JSON.
-Do not use Markdown.
-Do not use code fences.
-Do not add text before or after the JSON.
-
-Return exactly:
-
-{
-  "updated_plan": {
-    "goal": "string",
-    "summary": "string",
-    "deadline": "string",
-    "priority": "low | medium | high | critical",
-    "assumptions": [],
-    "tasks": [
-      {
-        "id": "T1",
-        "title": "string",
-        "description": "string",
-        "priority": "low | medium | high | critical",
-        "estimated_minutes": 60,
-        "dependencies": []
-      }
-    ],
-    "critical_path": [],
-    "insight": "string"
-  },
-  "changes": []
-}
-
-Rules:
-- Every task must have a unique ID.
-- IDs must be T1, T2, T3, etc.
-- Dependencies must reference existing task IDs.
-- critical_path must reference existing task IDs.
-- estimated_minutes must be an integer.
-- Keep the number of tasks reasonable.
-- Tasks must be concrete and actionable.
-- The "changes" array should contain short explanations of what changed.
-`;
-
-
-/* =========================================================
    CALL B.AI
    ========================================================= */
 
-/*
-IMPORTANT:
-
-There is intentionally NO AbortController timeout here.
-
-The previous working implementation allowed B.AI to finish
-its request normally. The newer artificial timeout could
-terminate a valid adaptation request before B.AI finished.
-
-Netlify will handle the function lifetime.
-*/
-
-async function callAI(userPrompt, systemPrompt = SYSTEM_PROMPT) {
+async function callAI(userPrompt) {
 
     const response = await fetch(API_URL, {
-
         method: "POST",
 
         headers: {
@@ -163,13 +79,12 @@ async function callAI(userPrompt, systemPrompt = SYSTEM_PROMPT) {
         },
 
         body: JSON.stringify({
-
             model: MODEL,
 
             messages: [
                 {
                     role: "system",
-                    content: systemPrompt
+                    content: SYSTEM_PROMPT
                 },
                 {
                     role: "user",
@@ -178,16 +93,17 @@ async function callAI(userPrompt, systemPrompt = SYSTEM_PROMPT) {
             ],
 
             temperature: 0.2,
-
             max_tokens: 4000
 
+            // IMPORTANT:
+            // No tools are supplied.
+            // ActionForge therefore does not request
+            // web search or external tools.
         })
-
     });
 
 
     const raw = await response.text();
-
 
     console.log(
         "B.AI status:",
@@ -202,46 +118,28 @@ async function callAI(userPrompt, systemPrompt = SYSTEM_PROMPT) {
             raw
         );
 
-
-        if (
-            raw &&
-            raw.includes("Inactivity Timeout")
-        ) {
-
-            throw new Error(
-                "AI service timed out. Please try again."
-            );
-
-        }
-
-
         throw new Error(
-            `B.AI request failed with status ${response.status}.`
+            `${response.status} ${raw}`
         );
-
     }
 
 
     let data;
 
-
     try {
 
         data = JSON.parse(raw);
 
-    }
-    catch {
+    } catch {
 
         console.error(
             "B.AI returned non-JSON:",
             raw
         );
 
-
         throw new Error(
             "B.AI returned a non-JSON API response."
         );
-
     }
 
 
@@ -261,152 +159,60 @@ function extractText(data) {
      * choices[0].message.content
      */
 
-    const standardContent =
-        data?.choices?.[0]?.message?.content;
-
-
     if (
-        typeof standardContent === "string" &&
-        standardContent.trim()
+        typeof data?.choices?.[0]?.message?.content ===
+        "string"
     ) {
 
-        return standardContent.trim();
-
+        return data.choices[0]
+            .message
+            .content
+            .trim();
     }
 
 
     /*
-     * Some providers return content as an array.
+     * Some providers may return content
+     * as an array.
      */
 
     if (
-        Array.isArray(standardContent)
+        Array.isArray(
+            data?.choices?.[0]?.message?.content
+        )
     ) {
 
         const parts =
-            standardContent
+            data.choices[0]
+                .message
+                .content
                 .map(part => {
 
                     if (
                         typeof part === "string"
                     ) {
-
                         return part;
-
                     }
-
 
                     if (
                         typeof part?.text === "string"
                     ) {
-
                         return part.text;
-
                     }
-
-
-                    if (
-                        typeof part?.content === "string"
-                    ) {
-
-                        return part.content;
-
-                    }
-
 
                     return "";
-
                 })
                 .filter(Boolean);
 
 
-        if (
-            parts.length > 0
-        ) {
+        if (parts.length > 0) {
 
             return parts
                 .join("\n")
                 .trim();
-
         }
-
     }
 
-
-    /*
-     * Some response formats may expose output_text.
-     */
-
-    if (
-        typeof data?.output_text === "string" &&
-        data.output_text.trim()
-    ) {
-
-        return data.output_text.trim();
-
-    }
-
-
-    /*
-     * Some Responses-style formats use output[].
-     */
-
-    if (
-        Array.isArray(data?.output)
-    ) {
-
-        const parts = [];
-
-
-        for (
-            const item of data.output
-        ) {
-
-            if (
-                !Array.isArray(item?.content)
-            ) {
-
-                continue;
-
-            }
-
-
-            for (
-                const content of item.content
-            ) {
-
-                if (
-                    typeof content?.text === "string" &&
-                    content.text.trim()
-                ) {
-
-                    parts.push(
-                        content.text.trim()
-                    );
-
-                }
-
-            }
-
-        }
-
-
-        if (
-            parts.length > 0
-        ) {
-
-            return parts
-                .join("\n")
-                .trim();
-
-        }
-
-    }
-
-
-    /*
-     * Nothing usable was found.
-     */
 
     console.error(
         "FULL B.AI RESPONSE:",
@@ -421,7 +227,6 @@ function extractText(data) {
     throw new Error(
         "AI returned no usable text."
     );
-
 }
 
 
@@ -431,15 +236,11 @@ function extractText(data) {
 
 function parseJSON(text) {
 
-    if (
-        !text ||
-        typeof text !== "string"
-    ) {
+    if (!text) {
 
         throw new Error(
             "AI returned an empty response."
         );
-
     }
 
 
@@ -448,7 +249,7 @@ function parseJSON(text) {
 
 
     /*
-     * Remove Markdown code fences.
+     * Remove Markdown fences.
      */
 
     cleaned =
@@ -469,29 +270,24 @@ function parseJSON(text) {
 
 
     /*
-     * Direct JSON.
+     * Try direct JSON.
      */
 
     try {
 
-        return JSON.parse(
-            cleaned
-        );
+        return JSON.parse(cleaned);
 
-    }
-    catch {
+    } catch {
         // Continue.
     }
 
 
     /*
-     * Extract JSON object from
-     * surrounding text.
+     * Try extracting JSON from surrounding text.
      */
 
     const start =
         cleaned.indexOf("{");
-
 
     const end =
         cleaned.lastIndexOf("}");
@@ -516,27 +312,23 @@ function parseJSON(text) {
                 extracted
             );
 
-        }
-        catch {
+        } catch {
             // Continue.
         }
-
     }
 
 
     /*
-     * Debug information.
+     * Debugging information.
      */
 
     console.error(
         "========== RAW AI RESPONSE =========="
     );
 
-
     console.error(
         cleaned
     );
-
 
     console.error(
         "======================================"
@@ -547,7 +339,6 @@ function parseJSON(text) {
         "RAW_AI_RESPONSE::" +
         cleaned
     );
-
 }
 
 
@@ -555,9 +346,7 @@ function parseJSON(text) {
    GENERATE PLAN
    ========================================================= */
 
-export async function generatePlan(
-    goal
-) {
+export async function generatePlan(goal) {
 
     if (
         !goal ||
@@ -568,18 +357,14 @@ export async function generatePlan(
         throw new Error(
             "Goal cannot be empty."
         );
-
     }
 
 
-    if (
-        goal.length > 5000
-    ) {
+    if (goal.length > 5000) {
 
         throw new Error(
             "Goal is too long. Keep it under 5000 characters."
         );
-
     }
 
 
@@ -601,20 +386,14 @@ Remember:
 
 
     const data =
-        await callAI(
-            prompt,
-            SYSTEM_PROMPT
-        );
+        await callAI(prompt);
 
 
     const text =
         extractText(data);
 
 
-    return parseJSON(
-        text
-    );
-
+    return parseJSON(text);
 }
 
 
@@ -627,14 +406,11 @@ export async function replan(
     problem
 ) {
 
-    if (
-        !originalPlan
-    ) {
+    if (!originalPlan) {
 
         throw new Error(
             "Original plan is required."
         );
-
     }
 
 
@@ -647,24 +423,7 @@ export async function replan(
         throw new Error(
             "Problem description is required."
         );
-
     }
-
-
-    /*
-     * Keep the existing plan intact.
-     *
-     * JSON.stringify with indentation makes the request easier
-     * for DeepSeek to understand and was part of the version
-     * that was already working reliably.
-     */
-
-    const planJSON =
-        JSON.stringify(
-            originalPlan,
-            null,
-            2
-        );
 
 
     const prompt = `
@@ -672,7 +431,11 @@ You are adapting an existing ActionForge plan.
 
 EXISTING PLAN:
 
-${planJSON}
+${JSON.stringify(
+    originalPlan,
+    null,
+    2
+)}
 
 
 NEW PROBLEM:
@@ -698,7 +461,7 @@ Determine:
 
 Return ONLY valid JSON.
 
-Use exactly this structure:
+Use this structure:
 
 {
   "updated_plan": {
@@ -730,25 +493,17 @@ IMPORTANT:
 - Do not use Google Search.
 - Do not use external tools.
 - Use only the existing plan and the user's new information.
-- Preserve the original goal.
-- Keep tasks practical and actionable.
 - Return JSON only.
 `;
 
 
     const data =
-        await callAI(
-            prompt,
-            REPLAN_SYSTEM_PROMPT
-        );
+        await callAI(prompt);
 
 
     const text =
         extractText(data);
 
 
-    return parseJSON(
-        text
-    );
-
+    return parseJSON(text);
 }
