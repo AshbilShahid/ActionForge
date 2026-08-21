@@ -4,9 +4,14 @@ const apiKey = process.env.AIHUBMIX_API_KEY;
 
 if (!apiKey) {
     throw new Error(
-        "AIHUBMIX_API_KEY environment variable is not configured."
+        "AIHUBMIX_API_KEY is missing from the Netlify Function environment."
     );
 }
+
+console.log(
+    "AIHubMix API key detected:",
+    apiKey.slice(0, 3) + "..." + apiKey.slice(-4)
+);
 
 const client = new OpenAI({
     apiKey: apiKey.trim(),
