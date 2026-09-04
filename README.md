@@ -7,7 +7,6 @@
   </a>
 </div>
 
->Test out the app by clicking this Image.
 # ⚡ ActionForge
 
 > **Turn intentions into execution.**
